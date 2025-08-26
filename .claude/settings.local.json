@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git init)",
+      "Bash(git config --global --list)",
+      "Bash(gh auth status)",
+      "Bash(gh repo create faker_agent --private --description \"A multi-modal agent system that uses LLMs to create fake personas for security testing\" --source=. --push)",
+      "Bash(git add .)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
