@@ -106,6 +106,7 @@ Features are organized in `frontend/src/features/` with reusable components in `
 
 ### Backend Settings (`backend/config/settings.py`)
 - LiteLLM model configuration (default: gpt-3.5-turbo)
+- LiteLLM custom endpoint URL support via `LITELLM_BASE_URL`
 - CORS origins for frontend integration
 - API prefixes and endpoints
 - Environment-based configuration via `.env`

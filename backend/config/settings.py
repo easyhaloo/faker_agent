@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     # LiteLLM settings
     LITELLM_API_KEY: str = Field("", env="LITELLM_API_KEY")
     LITELLM_MODEL: str = "gpt-3.5-turbo"  # Default model
+    LITELLM_BASE_URL: str = Field("", env="LITELLM_BASE_URL")  # Custom endpoint URL
     LITELLM_TEMPERATURE: float = 0.7
     LITELLM_MAX_TOKENS: int = 800
     

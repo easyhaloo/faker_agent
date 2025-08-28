@@ -40,9 +40,13 @@ class BasePlanner:
         self.temperature = settings.LITELLM_TEMPERATURE
         self.max_tokens = settings.LITELLM_MAX_TOKENS
         
-        # Set API key from settings
+        # Set API key and base URL from settings
         if settings.LITELLM_API_KEY:
             litellm.api_key = settings.LITELLM_API_KEY
+            
+        # Set custom base URL if provided
+        if settings.LITELLM_BASE_URL:
+            litellm.api_base = settings.LITELLM_BASE_URL
         
         logger.info(f"Initialized BasePlanner with model: {self.model}")
     
