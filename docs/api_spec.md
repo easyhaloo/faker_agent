@@ -1,258 +1,242 @@
-# API 交互规范文档
+# Faker Agent API 规范
 
 ## 概述
 
-本文档定义了前后端交互的 API 规范，采用 RESTful 风格设计，确保前后端开发的一致性和可维护性。
-
-## 基础信息
-
-- **基础URL**: `http://localhost:8000/api`
-- **数据格式**: JSON
-- **认证方式**: Bearer Token (JWT)
+Faker Agent 提供了一组 REST API 和 WebSocket 接口，用于与智能体交互。API 前缀为 `/api`，主要智能体接口位于 `/api/agent/v1/` 路径下。
 
 ## 通用响应格式
 
-所有 API 响应遵循以下统一格式：
+所有 HTTP API 返回统一的 JSON 格式：
 
 ```json
 {
-  "status": "success", // 或 "error"
-  "data": {}, // 成功时返回的数据
-  "error": {
+  "status": "success" | "error",
+  "data": { ... },  // 成功时返回数据
+  "error": {        // 出错时返回错误信息
     "code": "ERROR_CODE",
-    "message": "错误描述"
-  } // 失败时返回的错误信息
+    "message": "错误信息"
+  }
 }
 ```
 
-## API 端点
+## 智能体 API
 
-### 1. 智能体交互 API
+### 1. 向智能体发送查询
 
-#### 1.1 发送任务
-
-- **URL**: `/agent/task`
+**请求**:
+- **URL**: `/api/agent/v1/respond`
 - **方法**: POST
-- **描述**: 向智能体发送任务请求
-- **请求体**:
-  ```json
-  {
-    "query": "查询北京今天的天气",
-    "context": {}, // 可选的上下文信息
-    "stream": false // 是否使用流式响应
+- **内容类型**: application/json
+
+**请求体**:
+```json
+{
+  "input": "用户输入查询",
+  "conversation_id": "可选会话ID",
+  "protocol": "http" | "sse" | "websocket",
+  "mode": "sync" | "stream",
+  "filter_strategy": "可选过滤策略名称",
+  "tool_tags": ["可选工具标签"],
+  "params": { 
+    // 额外参数
   }
-  ```
-- **响应**:
-  ```json
-  {
-    "status": "success",
-    "data": {
-      "task_id": "task_12345",
-      "response": "北京今天天气晴朗，气温25°C-32°C，东南风3-4级。",
-      "actions": [] // 智能体执行的动作列表
-    }
+}
+```
+
+**响应**:
+- **HTTP 模式**: 返回完整 JSON 响应
+```json
+{
+  "status": "success",
+  "data": {
+    "response": "智能体响应",
+    "tool_calls": [
+      {
+        "tool_name": "工具名称",
+        "tool_args": { ... },
+        "tool_call_id": "调用ID",
+        "status": "started" | "completed",
+        "result": { ... },
+        "error": "可选错误信息"
+      }
+    ],
+    "execution_time": 1.23
   }
-  ```
+}
+```
 
-#### 1.2 获取任务状态
+- **SSE 模式**: 返回事件流，每个事件为 JSON 对象
+```
+data: {"type":"tool_call_start","tool_name":"工具名称","tool_args":{...},"tool_call_id":"调用ID"}
 
-- **URL**: `/agent/task/{task_id}`
-- **方法**: GET
-- **描述**: 获取特定任务的执行状态
-- **响应**:
-  ```json
-  {
-    "status": "success",
-    "data": {
-      "task_id": "task_12345",
-      "status": "completed", // pending, running, completed, failed
-      "progress": 100,
-      "result": {} // 任务结果
-    }
+data: {"type":"tool_call_result","tool_name":"工具名称","tool_call_id":"调用ID","result":{...}}
+
+data: {"type":"final","response":"最终响应"}
+```
+
+### 2. WebSocket 接口
+
+**连接**:
+- **URL**: `/api/agent/v1/ws`
+- **协议**: WebSocket
+
+**请求消息**:
+```json
+{
+  "input": "用户输入查询",
+  "conversation_id": "可选会话ID",
+  "filter_strategy": "可选过滤策略名称",
+  "tool_tags": ["可选工具标签"],
+  "params": { 
+    // 额外参数
   }
-  ```
+}
+```
 
-#### 1.3 流式响应
+**响应消息**:
+```json
+{
+  "type": "tool_call_start" | "tool_call_result" | "token" | "final" | "error",
+  // 根据类型包含不同字段
+}
+```
 
-- **URL**: `/agent/stream`
+### 3. 分析查询（不执行）
+
+**请求**:
+- **URL**: `/api/agent/v1/analyze`
 - **方法**: POST
-- **描述**: 流式处理任务，用于实时反馈
-- **请求体**: 同 `/agent/task`
-- **响应**: 使用 Server-Sent Events (SSE) 格式返回流式数据
+- **内容类型**: application/json
 
-### 2. 工具与插件 API
+**请求体**:
+```json
+{
+  "input": "用户输入查询"
+}
+```
 
-#### 2.1 获取可用工具列表
-
-- **URL**: `/tools`
-- **方法**: GET
-- **描述**: 获取所有注册的工具/插件
-- **响应**:
-  ```json
-  {
-    "status": "success",
-    "data": {
+**响应**:
+```json
+{
+  "status": "success",
+  "data": {
+    "query": "原始查询",
+    "plan": {
+      "query": "原始查询",
       "tools": [
         {
-          "id": "weather_query",
-          "name": "天气查询",
-          "description": "查询指定城市的天气信息",
-          "parameters": {
-            "city": {
-              "type": "string",
-              "description": "城市名称"
-            }
-          }
+          "tool_name": "工具名称",
+          "parameters": { ... }
         }
       ]
     }
   }
-  ```
+}
+```
 
-#### 2.2 调用特定工具
+### 4. 获取可用过滤策略
 
-- **URL**: `/tools/{tool_id}`
-- **方法**: POST
-- **描述**: 直接调用特定工具
-- **请求体**:
-  ```json
-  {
-    "parameters": {
-      "city": "北京"
-    }
-  }
-  ```
-- **响应**:
-  ```json
-  {
-    "status": "success",
-    "data": {
-      "result": {
-        "temperature": "28°C",
-        "condition": "晴",
-        "humidity": "45%"
-      }
-    }
-  }
-  ```
-
-### 3. 天气查询特定 API
-
-#### 3.1 获取城市天气
-
-- **URL**: `/weather/{city}`
+**请求**:
+- **URL**: `/api/agent/v1/strategies`
 - **方法**: GET
-- **描述**: 获取指定城市的天气信息
-- **响应**:
-  ```json
-  {
-    "status": "success",
-    "data": {
-      "city": "北京",
-      "date": "2025-08-26",
-      "temperature": {
-        "current": "28°C",
-        "min": "25°C",
-        "max": "32°C"
-      },
-      "condition": "晴",
-      "humidity": "45%",
-      "wind": {
-        "direction": "东南风",
-        "speed": "3-4级"
-      }
-    }
+
+**响应**:
+```json
+{
+  "status": "success",
+  "data": {
+    "strategies": ["threshold_5", "priority", "tag_weather"]
   }
-  ```
+}
+```
 
-### 4. 系统管理 API
+## 工具 API
 
-#### 4.1 系统状态
+### 1. 获取可用工具列表
 
-- **URL**: `/system/status`
+**请求**:
+- **URL**: `/api/tools`
 - **方法**: GET
-- **描述**: 获取系统运行状态
-- **响应**:
-  ```json
-  {
-    "status": "success",
-    "data": {
-      "version": "1.0.0",
-      "uptime": "2d 5h 30m",
-      "memory_usage": "256MB",
-      "active_tasks": 2
+
+**响应**:
+```json
+{
+  "status": "success",
+  "data": {
+    "tools": [
+      {
+        "name": "工具名称",
+        "description": "工具描述",
+        "parameters": [ ... ],
+        "tags": ["标签1", "标签2"],
+        "priority": 10
+      }
+    ]
+  }
+}
+```
+
+### 2. 天气 API
+
+**请求**:
+- **URL**: `/api/weather/{city}`
+- **方法**: GET
+- **参数**:
+  - `city`: 城市名称（路径参数）
+  - `country`: 国家代码（可选查询参数）
+
+**响应**:
+```json
+{
+  "status": "success",
+  "data": {
+    "city": "城市名",
+    "temperature": {
+      "current": "当前温度",
+      "min": "最低温度",
+      "max": "最高温度"
+    },
+    "condition": "天气状况",
+    "humidity": "湿度",
+    "wind": {
+      "direction": "风向",
+      "speed": "风速"
     }
   }
-  ```
-
-## WebSocket 接口
-
-### 实时任务状态更新
-
-- **URL**: `/ws/tasks`
-- **描述**: 提供任务状态的实时更新
-- **事件类型**:
-  - `task_created`: 任务创建
-  - `task_updated`: 任务状态更新
-  - `task_completed`: 任务完成
-  - `task_failed`: 任务失败
-
-## 数据模型
-
-### Task (任务)
-
-```json
-{
-  "id": "string",
-  "query": "string",
-  "status": "enum(pending, running, completed, failed)",
-  "created_at": "datetime",
-  "updated_at": "datetime",
-  "result": "object",
-  "error": "object"
 }
 ```
 
-### Tool (工具)
+## 系统 API
 
+### 1. 健康检查
+
+**请求**:
+- **URL**: `/`
+- **方法**: GET
+
+**响应**:
 ```json
 {
-  "id": "string",
-  "name": "string",
-  "description": "string",
-  "parameters": "object",
-  "return_schema": "object"
+  "status": "online",
+  "version": "版本号"
 }
 ```
 
-### WeatherData (天气数据)
+### 2. 系统状态
 
+**请求**:
+- **URL**: `/api/system/status`
+- **方法**: GET
+
+**响应**:
 ```json
 {
-  "city": "string",
-  "date": "date",
-  "temperature": {
-    "current": "string",
-    "min": "string",
-    "max": "string"
-  },
-  "condition": "string",
-  "humidity": "string",
-  "wind": {
-    "direction": "string",
-    "speed": "string"
+  "status": "success",
+  "data": {
+    "version": "版本号",
+    "uptime": "运行时间",
+    "memory_usage": "内存使用",
+    "active_tasks": 5
   }
 }
 ```
-
-## 错误码列表
-
-| 错误码 | 描述 |
-|--------|------|
-| AUTH_FAILED | 认证失败 |
-| INVALID_PARAMS | 无效参数 |
-| TASK_NOT_FOUND | 任务不存在 |
-| TOOL_NOT_FOUND | 工具不存在 |
-| RATE_LIMIT | 请求频率超限 |
-| SERVER_ERROR | 服务器内部错误 |
-| MODEL_ERROR | 模型调用错误 |

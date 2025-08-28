@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { agentService } from '../services/api';
+import { agentService } from '../services/agentService';
+import { ProtocolType, ModeType, EventType } from '../services/agentService';
 
 // 智能压缩消息历史以控制上下文长度
 const compressMessagesIntelligently = (messages, maxLength = 10) => {
@@ -69,6 +70,13 @@ export const useAgentStore = create(
       currentTaskId: null,
       isLoading: false,
       error: null,
+      protocol: ProtocolType.HTTP, // 默认使用HTTP协议
+      mode: ModeType.SYNC, // 默认使用同步模式
+      filterStrategy: null, // 默认不使用过滤策略
+      toolTags: [], // 默认不使用工具标签过滤
+      connection: null, // 存储SSE或WebSocket连接
+      availableTools: [], // 可用工具列表
+      filterStrategies: [], // 可用过滤策略列表
       
       // 初始化
       initialize: () => {
@@ -77,7 +85,14 @@ export const useAgentStore = create(
           tasks: {}, 
           currentTaskId: null, 
           isLoading: false, 
-          error: null 
+          error: null,
+          protocol: ProtocolType.HTTP,
+          mode: ModeType.SYNC,
+          filterStrategy: null,
+          toolTags: [],
+          connection: null,
+          availableTools: [],
+          filterStrategies: []
         });
       },
       
@@ -119,6 +134,37 @@ export const useAgentStore = create(
           return { messages: compressedMessages };
         });
       },
+      
+      // 设置协议类型
+      setProtocol: (protocol) => set({ protocol }),
+      
+      // 设置模式类型
+      setMode: (mode) => set({ mode }),
+      
+      // 设置过滤策略
+      setFilterStrategy: (filterStrategy) => set({ filterStrategy }),
+      
+      // 设置工具标签
+      setToolTags: (toolTags) => set({ toolTags }),
+      
+      // 添加工具标签
+      addToolTag: (tag) => set((state) => ({
+        toolTags: [...state.toolTags, tag]
+      })),
+      
+      // 移除工具标签
+      removeToolTag: (tag) => set((state) => ({
+        toolTags: state.toolTags.filter(t => t !== tag)
+      })),
+      
+      // 清空工具标签
+      clearToolTags: () => set({ toolTags: [] }),
+      
+      // 设置可用工具列表
+      setAvailableTools: (tools) => set({ availableTools: tools }),
+      
+      // 设置可用过滤策略列表
+      setFilterStrategies: (strategies) => set({ filterStrategies: strategies }),
       
       // 设置加载状态
       setLoading: (loading) => set({ isLoading: loading }),
@@ -165,40 +211,216 @@ export const useAgentStore = create(
         }));
       },
       
+      // 添加工具调用开始事件
+      addToolCallStartEvent: (taskId, toolCall) => {
+        const toolCallEvent = {
+          id: Date.now().toString(),
+          type: 'tool_call_start',
+          taskId,
+          toolCall,
+          timestamp: new Date().toISOString(),
+        };
+        
+        set((state) => {
+          const updatedTasks = {
+            ...state.tasks,
+            [taskId]: {
+              ...state.tasks[taskId],
+              toolCalls: [...(state.tasks[taskId]?.toolCalls || []), toolCallEvent],
+              updatedAt: new Date().toISOString(),
+            },
+          };
+          
+          return { tasks: updatedTasks };
+        });
+      },
+      
+      // 添加工具调用结果事件
+      addToolCallResultEvent: (taskId, toolCallId, result) => {
+        set((state) => {
+          const task = state.tasks[taskId];
+          if (!task) return state;
+          
+          const toolCalls = task.toolCalls || [];
+          const updatedToolCalls = toolCalls.map(tc => {
+            if (tc.toolCall.id === toolCallId) {
+              return {
+                ...tc,
+                result,
+                completed: true,
+                completedAt: new Date().toISOString(),
+              };
+            }
+            return tc;
+          });
+          
+          return {
+            tasks: {
+              ...state.tasks,
+              [taskId]: {
+                ...task,
+                toolCalls: updatedToolCalls,
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          };
+        });
+      },
+      
+      // 处理从服务器收到的事件
+      handleServerEvent: (event) => {
+        const { type, data } = event;
+        
+        switch (type) {
+          case EventType.TOOL_CALL_START:
+            get().addToolCallStartEvent(data.task_id, data.tool_call);
+            break;
+            
+          case EventType.TOOL_CALL_RESULT:
+            get().addToolCallResultEvent(data.task_id, data.tool_call_id, data.result);
+            break;
+            
+          case EventType.TOKEN:
+            // 处理流式文本token
+            break;
+            
+          case EventType.FINAL:
+            // 处理最终响应
+            if (data.response) {
+              get().addAssistantMessage(data.response, data.task_id);
+            }
+            get().setLoading(false);
+            get().closeConnection();
+            break;
+            
+          case EventType.ERROR:
+            get().setError(data.error || 'Unknown error');
+            get().setLoading(false);
+            get().closeConnection();
+            break;
+            
+          default:
+            console.warn('Unknown event type:', type);
+        }
+      },
+      
+      // 关闭连接
+      closeConnection: () => {
+        const connection = get().connection;
+        if (connection) {
+          if (connection instanceof EventSource) {
+            connection.close();
+          } else if (connection.readyState === WebSocket.OPEN) {
+            connection.close();
+          }
+          set({ connection: null });
+        }
+      },
+      
       // 发送消息到代理
-      sendMessageToAgent: async (content) => {
+      sendMessageToAgent: async (content, conversationId = null) => {
         const messageId = get().addUserMessage(content);
         get().setLoading(true);
         get().clearError();
         
         try {
-          // 提交任务给后端
-          const response = await agentService.sendTask(content);
+          const protocol = get().protocol;
+          const mode = get().mode;
+          const filterStrategy = get().filterStrategy;
+          const toolTags = get().toolTags;
           
-          if (response.status === 'success') {
-            // 如果有任务ID，设置为当前任务
-            if (response.data.task_id) {
-              get().setCurrentTaskId(response.data.task_id);
-              get().addTask(response.data.task_id, {
-                query: content,
-                response: response.data.response,
-              });
-            }
+          // 根据协议和模式选择发送方法
+          let response;
+          
+          if (protocol === ProtocolType.HTTP && mode === ModeType.SYNC) {
+            // 同步HTTP请求
+            response = await agentService.sendHttpRequest(content, {
+              conversationId,
+              filterStrategy,
+              toolTags
+            });
             
-            // 添加助手回复
-            get().addAssistantMessage(response.data.response, response.data.task_id);
-          } else {
-            const errorMessage = response.error?.message || 'Unknown error occurred';
-            get().setError(errorMessage);
-            get().addAssistantMessage(`Error: ${errorMessage}`);
+            if (response.status === 'success') {
+              // 如果有任务ID，设置为当前任务
+              if (response.data.task_id) {
+                get().setCurrentTaskId(response.data.task_id);
+                get().addTask(response.data.task_id, {
+                  query: content,
+                  response: response.data.response,
+                });
+              }
+              
+              // 添加助手回复
+              get().addAssistantMessage(response.data.response, response.data.task_id);
+            } else {
+              const errorMessage = response.error?.message || 'Unknown error occurred';
+              get().setError(errorMessage);
+              get().addAssistantMessage(`Error: ${errorMessage}`);
+            }
+          } else if (protocol === ProtocolType.SSE && mode === ModeType.STREAM) {
+            // 流式SSE请求
+            const eventSource = await agentService.sendSSERequest(content, {
+              conversationId,
+              filterStrategy,
+              toolTags,
+              onEvent: get().handleServerEvent
+            });
+            
+            // 存储连接以便稍后关闭
+            set({ connection: eventSource });
+          } else if (protocol === ProtocolType.WEBSOCKET && mode === ModeType.STREAM) {
+            // WebSocket请求
+            const socket = agentService.sendWebSocketRequest(content, {
+              conversationId,
+              filterStrategy,
+              toolTags,
+              onEvent: get().handleServerEvent
+            });
+            
+            // 存储连接以便稍后关闭
+            set({ connection: socket });
           }
         } catch (error) {
           console.error('Error sending message to agent:', error);
           const errorMessage = error.message || 'Failed to communicate with the agent';
           get().setError(errorMessage);
           get().addAssistantMessage(`Error: ${errorMessage}`);
-        } finally {
           get().setLoading(false);
+        }
+      },
+      
+      // 获取可用工具列表
+      fetchAvailableTools: async () => {
+        try {
+          const response = await agentService.getAvailableTools();
+          if (response.status === 'success') {
+            get().setAvailableTools(response.data);
+          }
+        } catch (error) {
+          console.error('Error fetching available tools:', error);
+        }
+      },
+      
+      // 获取可用过滤策略
+      fetchFilterStrategies: async () => {
+        try {
+          const response = await agentService.getFilterStrategies();
+          if (response.status === 'success') {
+            get().setFilterStrategies(response.data);
+          }
+        } catch (error) {
+          console.error('Error fetching filter strategies:', error);
+        }
+      },
+      
+      // 分析查询（不执行）
+      analyzeQuery: async (content) => {
+        try {
+          const response = await agentService.analyzeQuery(content);
+          return response;
+        } catch (error) {
+          console.error('Error analyzing query:', error);
+          throw error;
         }
       },
     }),
@@ -206,7 +428,11 @@ export const useAgentStore = create(
       name: 'agent-storage',
       partialize: (state) => ({ 
         messages: state.messages.slice(-20), // 只持久化最近20条消息
-        tasks: state.tasks 
+        tasks: state.tasks,
+        protocol: state.protocol,
+        mode: state.mode,
+        filterStrategy: state.filterStrategy,
+        toolTags: state.toolTags,
       }),
     }
   )

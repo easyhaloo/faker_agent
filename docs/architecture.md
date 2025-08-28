@@ -1,102 +1,87 @@
-# 智能体架构文档
+# Faker Agent 架构设计
 
-## 整体架构
+## 总体架构
 
-本项目为通用智能体平台，采用前后端分离架构：
-- **前端**：React 应用，提供用户交互界面
-- **后端**：FastAPI 服务，包含智能体核心逻辑
-- **大模型集成**：通过 LiteLLM 框架实现，支持多模型接入
-- **环境管理**：基于 UV 工具实现 Python 包管理
+Faker Agent 是一个模块化、可扩展的智能体系统，具有以下核心组件：
 
-## 目录结构
+1. **Tool Registry**：工具注册与管理中心
+2. **Tool Filter & Strategy Layer**：工具过滤策略层
+3. **LangGraph Flow Orchestrator**：基于 LangGraph 的工作流编排器
+4. **LLM-based Assembler**：将用户输入转化为工具链的组装器
+5. **Protocol Layer**：统一协议层，支持 HTTP/SSE/WebSocket
+6. **API 接口**：FastAPI 路由及端点
 
-```
-faker_agent/
-├── backend/                # 后端代码（Python FastAPI）
-│   ├── core/               # 核心智能体逻辑
-│   │   ├── planner/        # 任务规划模块
-│   │   ├── executor/       # 执行模块
-│   │   ├── memory/         # 记忆模块
-│   │   └── registry/       # 插件/工具注册中心
-│   ├── api/                # API 路由定义
-│   ├── modules/            # 功能模块，如天气查询模块
-│   ├── config/             # 配置文件
-│   └── main.py             # 应用入口
-│
-├── frontend/               # 前端代码（React）
-│   ├── src/
-│   │   ├── features/       # 功能模块
-│   │   ├── components/     # UI 组件
-│   │   ├── services/       # API 服务调用
-│   │   └── App.jsx         # 应用入口
-│   ├── public/             # 静态资源
-│   └── package.json        # 依赖配置
-│
-└── docs/                   # 项目文档
-    ├── architecture.md     # 架构文档
-    ├── api_spec.md         # API 交互规范
-    └── progress/           # 进度记录
-```
+## 组件详解
 
-## 核心模块
+### 1. Tool Registry
 
-### 后端
+工具注册中心负责管理所有可用的工具，提供统一的注册、查询和列出工具的接口。主要包括：
 
-1. **Planner 模块**
-   - 职责：将用户自然语言任务分解为步骤流
-   - 实现：基于 LiteLLM 调用大模型，生成任务执行计划
+- **BaseTool**：所有工具的基类，提供统一接口
+- **ToolRegistry**：基础工具注册表
+- **FilteredToolRegistry**：增强版注册表，支持过滤策略
 
-2. **Executor 模块**
-   - 职责：执行任务步骤，调用工具和服务
-   - 实现：支持 API 调用、本地函数执行、插件调用
+工具定义包含名称、描述、参数定义、标签和优先级等元数据，便于智能体发现和调用。
 
-3. **Memory 模块**
-   - 职责：维护对话历史和上下文
-   - 实现：支持短期内存和长期存储
+### 2. Tool Filter & Strategy Layer
 
-4. **Registry 模块**
-   - 职责：管理和调用各种工具/插件
-   - 实现：提供统一的注册和发现机制
+工具过滤策略层负责在 LangGraph 编排前对工具集合进行预选择，减少工具绑定数量，提高效率。
 
-### 前端
+- **ToolFilterStrategy**：过滤策略基类
+- **ThresholdToolFilter**：限制工具数量的策略
+- **TagToolFilter**：基于标签的过滤策略
+- **PriorityToolFilter**：基于优先级的过滤策略
+- **CompositeToolFilter**：组合多种过滤策略
+- **ToolFilterManager**：管理多种过滤策略
 
-1. **Features 模块**
-   - 任务面板：展示和管理任务
-   - 对话界面：与智能体交互
-   - 插件管理：查看和配置可用插件
+### 3. LangGraph Flow Orchestrator
 
-2. **Components 模块**
-   - 基础 UI 组件集合
-   - 遵循 TailwindCSS + shadcn/ui 规范
+基于 LangGraph 的工作流编排器，负责编排工具执行流程和生成统一事件流。
 
-3. **Services 模块**
-   - API 调用封装
-   - WebSocket 连接管理（用于实时更新）
+- **FlowOrchestrator**：核心编排器，管理工具执行流程
+- **Event Types**：统一事件类型定义（tool_call_start, tool_call_result, token, final, error）
+- **Graph Builder**：构建 LangGraph 工作流图
 
-## 技术栈详情
+### 4. LLM-based Assembler
 
-### 后端技术栈
+LLM-based Assembler 负责将用户输入转化为可执行的工具链。
 
-- **主框架**：FastAPI
-- **大模型接入**：LiteLLM
-- **依赖管理**：UV
-- **数据存储**：SQLite（开发阶段）/ Redis（可选）
+- **LLMAssembler**：核心组装器，使用 LLM 生成工具调用计划
+- **ToolSpec**：工具规范数据模型
+- **ToolChain**：工具链数据模型
+- **ExecutionPlan**：执行计划数据模型
 
-### 前端技术栈
+### 5. Protocol Layer
 
-- **主框架**：React
-- **构建工具**：Vite
-- **状态管理**：Zustand
-- **UI 框架**：TailwindCSS + shadcn/ui
-- **HTTP 客户端**：Axios
+协议层负责将工作流生成的事件流转换为不同协议格式，支持多种前端交互方式。
 
-## 部署架构
+- **BaseProtocol**：协议基类
+- **HTTPProtocol**：HTTP 协议处理器
+- **SSEProtocol**：Server-Sent Events 协议处理器
+- **WebSocketProtocol**：WebSocket 协议处理器
+- **ProtocolFactory**：协议工厂，动态创建协议处理器
 
-开发阶段，前后端可独立运行：
-- 后端：FastAPI 服务，默认端口 8000
-- 前端：Vite 开发服务器，默认端口 5173
+### 6. API 接口
 
-生产环境下的推荐部署方式：
-- 后端部署为独立服务
-- 前端静态文件由 Nginx/CDN 提供服务
-- 可选容器化部署（Docker）
+FastAPI 路由及端点，提供统一的 API 接口供前端调用。
+
+- **/api/agent/v1/respond**：主要智能体响应端点，支持多种协议
+- **/api/agent/v1/ws**：WebSocket 端点
+- **/api/agent/v1/analyze**：分析端点，不执行工具但返回执行计划
+- **/api/agent/v1/strategies**：策略列表端点
+
+## 数据流
+
+1. 用户输入通过 API 接口发送到后端
+2. LLM-based Assembler 将输入转化为工具链
+3. Tool Filter 根据策略过滤可用工具
+4. Flow Orchestrator 编排工具执行流程
+5. 工具执行结果通过 Protocol Layer 转换为对应协议格式
+6. 响应返回给前端
+
+## 扩展点
+
+1. **新工具**：继承 BaseTool 实现新工具，并注册到 Registry
+2. **新过滤策略**：继承 ToolFilterStrategy 实现新策略
+3. **新协议**：继承 BaseProtocol 实现新协议
+4. **新模块**：在 modules 目录下添加新模块，提供专用功能
