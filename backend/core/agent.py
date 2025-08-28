@@ -1,116 +1,53 @@
 """
-Main agent class that orchestrates planning and execution.
+Main agent implementation using LangGraph.
 """
-import asyncio
 import logging
-import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
-from pydantic import BaseModel
-
-from backend.core.executor.base_executor import BaseExecutor, TaskExecution
-from backend.core.memory.simple_memory import memory
-from backend.core.planner.base_planner import BasePlanner, Plan
-from backend.core.registry.base_registry import registry
+from backend.core.graph.agent_graph import AgentGraph
 
 # Configure logger
 logger = logging.getLogger(__name__)
 
 
-class AgentResponse(BaseModel):
-    """Response from the agent to a user query."""
-    
-    task_id: str
-    response: str
-    actions: List[Dict[str, Any]] = []
-
-
 class Agent:
-    """
-    Main agent class that orchestrates planning and execution.
-    """
+    """Main agent class using LangGraph for orchestration."""
     
     def __init__(self):
-        self.planner = BasePlanner()
-        self.executor = BaseExecutor(registry=registry)
-        logger.info("Initialized Agent")
+        self.graph = AgentGraph()
+        logger.info("Initialized Agent with LangGraph")
     
-    async def process_query(
-        self,
-        query: str,
-        conversation_id: Optional[str] = None,
-        context: Optional[Dict[str, Any]] = None
-    ) -> AgentResponse:
+    async def process_query(self, query: str) -> Dict[str, Any]:
         """
-        Process a user query and return a response.
+        Process a user query through the agent graph.
         
         Args:
             query: The user's query
-            conversation_id: Optional conversation ID for context
-            context: Optional additional context
             
         Returns:
-            AgentResponse with the agent's response
+            The final result from the agent
         """
-        # Generate IDs if not provided
-        conversation_id = conversation_id or str(uuid.uuid4())
-        task_id = str(uuid.uuid4())
-        context = context or {}
+        logger.info(f"Processing query: {query}")
         
         try:
-            # Store the user query in memory
-            await memory.add_message(conversation_id, "user", query)
+            # Invoke the graph
+            result = await self.graph.invoke(query)
             
-            # 1. Planning: Break down the task
-            logger.info(f"Planning for query: {query}")
-            plan = await self.planner.create_plan(query, context)
+            # Extract the final message
+            messages = result["messages"]
+            final_message = messages[-1] if messages else None
             
-            # 2. Execution: Execute the plan
-            logger.info(f"Executing plan for task {task_id}")
-            execution = await self.executor.execute_task(task_id, query, plan)
-            
-            # 3. Response: Get the final response
-            response = execution.final_response or "I wasn't able to complete the task."
-            
-            # Store the agent's response in memory
-            await memory.add_message(conversation_id, "assistant", response)
-            
-            # Extract actions for the response
-            actions = self._extract_actions(execution)
-            
-            return AgentResponse(
-                task_id=task_id,
-                response=response,
-                actions=actions
-            )
-            
+            return {
+                "status": "success",
+                "data": {
+                    "query": query,
+                    "result": final_message.content if final_message else "No response",
+                    "actions": [msg.dict() for msg in messages]
+                }
+            }
         except Exception as e:
             logger.error(f"Error processing query: {e}")
-            error_response = f"I encountered an error: {str(e)}"
-            
-            # Store the error response
-            await memory.add_message(conversation_id, "assistant", error_response)
-            
-            return AgentResponse(
-                task_id=task_id,
-                response=error_response,
-                actions=[]
-            )
-    
-    def _extract_actions(self, execution: TaskExecution) -> List[Dict[str, Any]]:
-        """Extract actions from the execution result for the response."""
-        actions = []
-        
-        for step in execution.steps:
-            for tool_name, result in step.tool_results.items():
-                if result.success:
-                    actions.append({
-                        "tool": tool_name,
-                        "result": result.output
-                    })
-        
-        return actions
-
-
-# Create global agent instance
-agent = Agent()
+            return {
+                "status": "error",
+                "error": str(e)
+            }

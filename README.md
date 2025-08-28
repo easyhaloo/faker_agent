@@ -60,6 +60,36 @@ npm run dev
 
 The frontend will be available at http://localhost:5173.
 
+## One-Click Startup Scripts
+
+To simplify the development workflow, we provide one-click startup scripts that launch both the backend and frontend services simultaneously:
+
+### For Unix/Linux/macOS Users
+
+```bash
+./start_dev.sh
+```
+
+This script will:
+- Start the backend server (http://localhost:8000)
+- Start the frontend development server (http://localhost:5173)
+- Display both service addresses
+- Handle graceful shutdown when you press Ctrl+C
+
+### For Windows Users
+
+```cmd
+start_dev.bat
+```
+
+This script will:
+- Open separate command windows for backend and frontend services
+- Start the backend server (http://localhost:8000)
+- Start the frontend development server (http://localhost:5173)
+- Display service addresses in each window
+
+Both scripts require the individual setup steps (UV installation, npm install, .env configuration) to be completed first.
+
 ## Development
 
 ### Project Structure
