@@ -2,15 +2,7 @@
 Frontend service for real-time task status updates.
 """
 import axios from 'axios';
-
-// API base URL
-const API_BASE_URL = 'http://localhost:8000/api';
-
-// Create axios instance
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 10000,
-});
+import { apiClient as api } from './apiClient';
 
 /**
  * Submit a task to the agent asynchronously.

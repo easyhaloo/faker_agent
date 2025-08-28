@@ -1,3 +1,1 @@
-"""
-API routes for the intelligent agent system.
-"""
+"""API module for the Faker Agent."""

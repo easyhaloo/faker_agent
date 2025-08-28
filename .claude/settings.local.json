@@ -44,7 +44,16 @@
       "Bash(npm config get registry)",
       "Bash(npm install -g cnpm --registry=https://registry.npmmirror.com)",
       "Bash(cnpm install react-markdown remark-gfm)",
-      "Bash(git log -n 3 --pretty=format:\"%h %s\")"
+      "Bash(git log -n 3 --pretty=format:\"%h %s\")",
+      "Bash(start_dev.bat)",
+      "Bash(npx vite)",
+      "Bash(npm install vite)",
+      "Bash(npm run dev -- --port 5174)",
+      "Bash(mkdir -p backend/core/filters)",
+      "Bash(git add CODING_GUIDANCE_UPDATED.md docs/ frontend/src/components/ProtocolSelector.jsx frontend/src/components/StreamingResponse.jsx frontend/src/components/ToolTagSelector.jsx frontend/src/components/chat/EnhancedChatPanel.jsx frontend/src/services/agentService.js frontend/src/services/connectionManager.js frontend/src/store/agentStore.js frontend/src/App.jsx)",
+      "Bash(git add frontend/src/services/apiClient.ts)",
+      "Bash(git commit -m \"实现多协议支持和工具执行可视化\n\n- 前端新增多协议支持（HTTP/SSE/WebSocket）\n- 实现协议选择器和工具标签过滤组件\n- 添加流式响应和工具执行可视化\n- 实现WebSocket连接管理\n- 重构Zustand状态管理支持多协议\n- 更新前端聊天界面\n- 完善文档结构和分类\n- 添加架构文档和前端文档\n- 更新编码指导文档\n\n通过这些更新，系统现在可以根据需求使用不同通信协议，\n并提供工具执行过程的实时可视化，大幅提升用户体验和系统透明度。\")",
+      "Bash(git push origin main)"
     ],
     "deny": [],
     "ask": []

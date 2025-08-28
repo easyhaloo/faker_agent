@@ -1,6 +1,6 @@
 ---
 name: coding-guidance-advisor
-description: Use this agent when developers need assistance with coding standards, project conventions, or best practices specific to the Faker Agent project. This includes questions about code style, architecture patterns, module organization, or tool usage. Example: When a developer asks 'How should I structure a new module?' or 'What are the coding conventions for this project?', use this agent to provide guidance based on the project documentation.
+description: Use this agent when developers need assistance with  , project conventions, or best practices specific to the Faker Agent project. This includes questions about code style, architecture patterns, module organization, or tool usage. Example: When a developer asks 'How should I structure a new module?' or 'What are the coding conventions for this project?', use this agent to provide guidance based on the project documentation.
 model: inherit
 color: yellow
 ---

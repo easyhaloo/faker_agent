@@ -27,6 +27,8 @@ class ToolDefinition(BaseModel):
     description: str
     parameters: List[ToolParameter] = []
     return_schema: Dict[str, Any] = {}
+    tags: List[str] = []
+    priority: int = 0
     
     # These fields are not serialized
     function: Optional[Callable] = None
@@ -39,6 +41,8 @@ class BaseTool:
     name = "base_tool"
     description = "Base tool class"
     parameters = []
+    tags = []
+    priority = 0
     
     async def run(self, **kwargs) -> Any:
         """Run the tool with the provided parameters."""
@@ -61,6 +65,8 @@ class BaseTool:
             tool_name=cls.name,
             description=cls.description,
             parameters=params,
+            tags=cls.tags,
+            priority=cls.priority,
             tool_class=cls
         )
 
@@ -117,7 +123,9 @@ class ToolRegistry:
             result.append({
                 "name": name,
                 "description": tool.description,
-                "parameters": [p.dict() for p in tool.parameters]
+                "parameters": [p.dict() for p in tool.parameters],
+                "tags": tool.tags,
+                "priority": tool.priority
             })
         return result
     

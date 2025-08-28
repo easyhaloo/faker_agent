@@ -19,6 +19,8 @@ class WeatherTool(BaseTool):
     
     name = "weather_query"
     description = "Queries weather information for a specified city"
+    tags = ["weather", "data"]
+    priority = 10
     parameters = [
         {
             "name": "city",

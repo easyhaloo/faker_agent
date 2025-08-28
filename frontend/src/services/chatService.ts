@@ -1,13 +1,5 @@
 import axios from 'axios';
-
-const API_BASE_URL = 'http://localhost:8000/api';
-
-const apiClient = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+import { apiClient } from './apiClient';
 
 export interface ChatResponse {
   reply: string;
@@ -20,7 +12,6 @@ export async function sendMessage(content: string): Promise<ChatResponse> {
       stream: false,
     });
     
-    // 根据实际API响应结构调整
     return {
       reply: response.data.response || response.data.data?.response || "No response from agent"
     };
