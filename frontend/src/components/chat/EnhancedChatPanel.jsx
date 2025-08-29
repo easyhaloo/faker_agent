@@ -92,11 +92,21 @@ const EnhancedChatPanel = () => {
               <p className="text-gray-500 max-w-md">Start a conversation by sending a message. I can help you with various tasks and answer your questions.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full max-w-lg">
-              <Card className="p-3 cursor-pointer hover:bg-gray-50 transition-colors">
+              <Card 
+                className="p-3 cursor-pointer hover:bg-gray-50 transition-colors" 
+                onClick={() => {
+                  setInputValue("今天北京的天气怎么样？");
+                }}
+              >
                 <h4 className="font-medium text-gray-800">天气查询</h4>
                 <p className="text-sm text-gray-500 mt-1">"今天北京的天气怎么样？"</p>
               </Card>
-              <Card className="p-3 cursor-pointer hover:bg-gray-50 transition-colors">
+              <Card 
+                className="p-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                onClick={() => {
+                  setInputValue("帮我制定一周学习计划");
+                }}
+              >
                 <h4 className="font-medium text-gray-800">任务规划</h4>
                 <p className="text-sm text-gray-500 mt-1">"帮我制定一周学习计划"</p>
               </Card>

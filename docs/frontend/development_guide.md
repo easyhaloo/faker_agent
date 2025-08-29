@@ -97,7 +97,31 @@ src/
 ### 调试提示
 
 - 使用**CURL命令**，访问相关接口，获取相关返回信息，进行问题修复
+- 检查组件交互事件是否正确绑定，特别是卡片、按钮等可点击元素
+- 确保事件处理函数正确实现并绑定到相应的DOM元素
+- 使用浏览器开发者工具检查事件触发和状态变化
 
+### 常见问题修复
+
+#### 点击事件无响应
+
+示例问题：示例卡片（如天气查询、任务规划）点击无响应
+
+修复方法：为卡片添加`onClick`事件处理程序，实现点击交互
+
+```jsx
+<Card 
+  className="p-3 cursor-pointer hover:bg-gray-50 transition-colors" 
+  onClick={() => {
+    setInputValue("示例文本");
+    // 可选：自动发送
+    // handleSubmit(new Event('click'));
+  }}
+>
+  <h4 className="font-medium text-gray-800">卡片标题</h4>
+  <p className="text-sm text-gray-500 mt-1">示例内容</p>
+</Card>
+```
 
 
 ## 最佳实践
