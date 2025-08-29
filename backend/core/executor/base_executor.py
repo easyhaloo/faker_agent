@@ -12,6 +12,10 @@ from pydantic import BaseModel
 
 from backend.config.settings import settings
 from backend.core.planner.base_planner import Plan, PlanStep
+from backend.core.prompts.executor_prompts import (
+    EXECUTOR_SYSTEM_MESSAGE,
+    RESPONSE_GENERATION_PROMPT_TEMPLATE
+)
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -169,22 +173,17 @@ class BaseExecutor:
         
         steps_text = "\n".join(steps_summary)
         
-        prompt = f"""
-        Original Query: {query}
-        
-        Execution Steps:
-        {steps_text}
-        
-        Please provide a helpful response that addresses the original query based on the 
-        execution results above. Be concise and clear in your answer.
-        """
+        prompt = RESPONSE_GENERATION_PROMPT_TEMPLATE.format(
+            query=query,
+            steps_summary=steps_text
+        )
         
         try:
             # Call LiteLLM
             response = await completion(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "system", "content": EXECUTOR_SYSTEM_MESSAGE},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=self.temperature,

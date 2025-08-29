@@ -6,7 +6,7 @@ from typing import Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
-from backend.core.registry.base_registry import registry
+# Removed unused import
 from backend.modules.weather.weather_tool import WeatherTool
 
 # Configure logger

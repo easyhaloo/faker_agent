@@ -6,6 +6,7 @@
   :root {
     --background: 0 0% 100%;
     --foreground: 222.2 47.4% 11.2%;
+    --base-font-size: 16px;
 
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
@@ -39,6 +40,7 @@
   .dark {
     --background: 224 71% 4%;
     --foreground: 213 31% 91%;
+    --base-font-size: 16px;
 
     --muted: 223 47% 11%;
     --muted-foreground: 215.4 16.3% 56.9%;
@@ -70,6 +72,72 @@
   }
 }
 
+/* 显示设置相关的CSS类 */
+.text-small {
+  font-size: 14px;
+}
+
+.text-medium {
+  font-size: 16px;
+}
+
+.text-large {
+  font-size: 18px;
+}
+
+.layout-comfortable {
+  /* 舒适布局使用默认间距 */
+}
+
+.layout-compact .p-4 {
+  @apply p-2;
+}
+
+.layout-compact .py-4 {
+  @apply py-2;
+}
+
+.layout-compact .px-4 {
+  @apply px-2;
+}
+
+.layout-compact .m-4 {
+  @apply m-2;
+}
+
+.layout-compact .my-4 {
+  @apply my-2;
+}
+
+.layout-compact .mx-4 {
+  @apply mx-2;
+}
+
+.no-animation * {
+  transition: none !important;
+  animation: none !important;
+}
+
+.compact-mode .gap-4 {
+  gap: 0.5rem;
+}
+
+.compact-mode .gap-2 {
+  gap: 0.25rem;
+}
+
+.compact-mode .p-4 {
+  @apply p-2;
+}
+
+.compact-mode .py-4 {
+  @apply py-2;
+}
+
+.compact-mode .px-4 {
+  @apply px-2;
+}
+
 @layer base {
   * {
     @apply border-border;
@@ -77,5 +145,6 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    font-size: var(--base-font-size);
   }
 }

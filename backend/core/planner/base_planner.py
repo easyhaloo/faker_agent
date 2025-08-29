@@ -9,6 +9,11 @@ from litellm import completion
 from pydantic import BaseModel, Field
 
 from backend.config.settings import settings
+from backend.core.prompts.planner_prompts import (
+    PLANNER_SYSTEM_MESSAGE,
+    PLANNING_PROMPT_TEMPLATE,
+    CONTEXT_ADDITION_TEMPLATE
+)
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -71,7 +76,7 @@ class BasePlanner:
             response = await completion(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "You are a helpful planning assistant."},
+                    {"role": "system", "content": PLANNER_SYSTEM_MESSAGE},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=self.temperature,
@@ -95,24 +100,12 @@ class BasePlanner:
     
     def _build_planning_prompt(self, task: str, context: Dict[str, Any]) -> str:
         """Build the planning prompt for the LLM."""
-        prompt = f"""
-        Task: {task}
-        
-        Please create a step-by-step plan to complete this task.
-        Break it down into logical steps that can be executed sequentially.
-        
-        For each step, consider:
-        1. What needs to be done
-        2. What tools or APIs might be needed
-        3. What information is required
-        
-        Format the response as a numbered list of steps.
-        """
+        prompt = PLANNING_PROMPT_TEMPLATE.format(task=task)
         
         # Add context if available
         if context:
             context_str = "\n".join([f"{k}: {v}" for k, v in context.items()])
-            prompt += f"\n\nAdditional context:\n{context_str}"
+            prompt += CONTEXT_ADDITION_TEMPLATE.format(context=context_str)
             
         return prompt
     

@@ -5,42 +5,39 @@ import asyncio
 import os
 import sys
 
-# Add backend to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
-
+import pytest
 from backend.core.tools.calculator import CalculatorTool
 
 
+@pytest.mark.asyncio
 async def test_calculator():
     """Test calculator tool functionality."""
     # Initialize calculator tool
     calculator = CalculatorTool()
     
-    # Test expressions
-    expressions = [
-        "2 + 3",
-        "10 - 4",
-        "6 * 7",
-        "15 / 3",
-        "2 ^ 3",
-        "sqrt(16)",
-        "2 * (3 + 4)",
-        "10 / 0",  # Division by zero
-        "invalid expression"  # Invalid expression
-    ]
+    # Test basic arithmetic
+    result = await calculator.run("2 + 3")
+    assert "result" in result
+    assert result["result"] == 5
     
-    print("Testing calculator tool...")
-    for expr in expressions:
-        print(f"\nEvaluating: {expr}")
-        result = await calculator.run(expr)
-        
-        if "error" in result:
-            print(f"Error: {result['error']}")
-        else:
-            print(f"Result: {result['result']}")
+    # Test subtraction
+    result = await calculator.run("10 - 4")
+    assert "result" in result
+    assert result["result"] == 6
     
-    print("\nTest completed!")
-
-
-if __name__ == "__main__":
-    asyncio.run(test_calculator())
+    # Test multiplication
+    result = await calculator.run("6 * 7")
+    assert "result" in result
+    assert result["result"] == 42
+    
+    # Test division
+    result = await calculator.run("15 / 3")
+    assert "result" in result
+    assert result["result"] == 5
+    
+    # Test error cases
+    result = await calculator.run("10 / 0")
+    assert "error" in result
+    
+    result = await calculator.run("invalid expression")
+    assert "error" in result

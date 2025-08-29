@@ -3,12 +3,13 @@ Weather query tool for the Faker Agent.
 """
 import logging
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 import httpx
 
 from backend.config.settings import settings
-from backend.core.registry.base_registry import BaseTool, registry
+from backend.core.tools.base import BaseTool
+from backend.core.tools.registry import tool_registry
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -21,20 +22,23 @@ class WeatherTool(BaseTool):
     description = "Queries weather information for a specified city"
     tags = ["weather", "data"]
     priority = 10
-    parameters = [
-        {
-            "name": "city",
-            "type": "string",
-            "description": "The city name to get weather for",
-            "required": True
-        },
-        {
-            "name": "country",
-            "type": "string",
-            "description": "Optional country code to disambiguate city names",
-            "required": False
-        }
-    ]
+    
+    def get_parameters(self) -> List[Dict[str, Any]]:
+        """Get the tool parameters."""
+        return [
+            {
+                "name": "city",
+                "type": "string",
+                "description": "The city name to get weather for",
+                "required": True
+            },
+            {
+                "name": "country",
+                "type": "string",
+                "description": "Optional country code to disambiguate city names",
+                "required": False
+            }
+        ]
     
     async def run(self, city: str, country: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -149,4 +153,4 @@ class WeatherTool(BaseTool):
 
 
 # Register the weather tool
-registry.register_tool(WeatherTool)
+tool_registry.register_tool(WeatherTool())

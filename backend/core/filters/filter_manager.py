@@ -14,8 +14,9 @@ from backend.core.filters.tool_filter_strategy import (
     ToolFilterStrategy,
     create_filter_strategy
 )
-from backend.core.registry.base_registry import BaseTool
-from backend.core.registry.enhanced_registry import enhanced_registry
+# Import BaseTool from the actual tools module to avoid circular imports
+from backend.core.tools.base import BaseTool
+from backend.core.tools.registry import tool_registry
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -32,7 +33,7 @@ class ToolFilterManager:
     
     def __init__(self):
         """Initialize the filter manager."""
-        self.registry = enhanced_registry
+        self.registry = tool_registry
         self.strategies: Dict[str, ToolFilterStrategy] = {}
         
         # Register default strategies

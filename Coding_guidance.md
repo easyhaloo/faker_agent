@@ -198,7 +198,7 @@ project-root/
 ---
 
 ✨ 总结
-
+* 任务开始之前，请先查阅**CODING_GUIDANCE_UPDATE.md**
 * 架构：**前端 Web (React) + 后端 Python (FastAPI)**
 * 后端提供智能体核心，前端作为管理与交互界面
 * 模块化、可插拔、渐进式迭代

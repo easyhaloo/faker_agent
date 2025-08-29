@@ -7,7 +7,8 @@ from typing import Any, Dict, List, Optional, Set, Type
 from pydantic import BaseModel
 
 from backend.core.filters.tool_filter_strategy import ToolFilterStrategy, ThresholdToolFilter
-from backend.core.registry.base_registry import BaseTool, ToolDefinition, ToolRegistry
+from backend.core.tools.base import BaseTool
+from backend.core.tools.registry import ToolRegistry
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -46,15 +47,13 @@ class FilteredToolRegistry(ToolRegistry):
         # Get all tools or filter by tags first
         tools = []
         
-        for tool_def in self.tools.values():
+        for name, tool in self.tools.items():
             # Skip tools that don't match tags if specified
-            if tags and not any(tag in tool_def.tags for tag in tags):
+            if tags and not any(tag in tool.metadata.tags for tag in tags):
                 continue
                 
-            # Create tool instance if it's a class
-            if tool_def.tool_class:
-                tool_instance = tool_def.tool_class()
-                tools.append(tool_instance)
+            # Add tool instance to list
+            tools.append(tool)
         
         # Apply filter strategy if provided, otherwise use default
         filter_strategy = strategy or self._default_filter_strategy
@@ -83,13 +82,13 @@ class FilteredToolRegistry(ToolRegistry):
         
         for name, tool in self.tools.items():
             # Check if any tool tag matches requested tags
-            if any(tag in tag_set for tag in tool.tags):
+            if any(tag in tag_set for tag in tool.metadata.tags):
                 filtered_tools.append({
                     "name": name,
-                    "description": tool.description,
-                    "parameters": [p.dict() for p in tool.parameters],
-                    "tags": tool.tags,
-                    "priority": tool.priority
+                    "description": tool.metadata.description,
+                    "parameters": [p.dict() for p in tool.metadata.parameters],
+                    "tags": tool.metadata.tags,
+                    "priority": tool.metadata.priority
                 })
         
         return filtered_tools

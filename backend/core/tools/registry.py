@@ -40,6 +40,31 @@ class ToolRegistry:
     def get_all_langchain_tools(self) -> List[Any]:
         """Get all LangChain tool adapters."""
         return list(self.langchain_tools.values())
+    
+    def filter_tools(self, strategy=None, tags=None) -> List[BaseTool]:
+        """
+        Filter tools using the specified strategy and optional tags.
+        
+        Args:
+            strategy: The filter strategy to apply (not implemented in this basic version)
+            tags: Optional list of tags to pre-filter by
+            
+        Returns:
+            The filtered list of tool instances
+        """
+        tools = list(self.tools.values())
+        
+        # Filter by tags if specified
+        if tags:
+            filtered_tools = []
+            tag_set = set(tags)
+            for tool in tools:
+                # Check if any tool tag matches requested tags
+                if hasattr(tool.metadata, 'tags') and any(tag in tag_set for tag in tool.metadata.tags):
+                    filtered_tools.append(tool)
+            tools = filtered_tools
+        
+        return tools
 
 
 # Global registry instance

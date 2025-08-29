@@ -11,7 +11,7 @@ from typing import Any, AsyncGenerator, Callable, Dict, List, Optional
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.graph import END, MessageGraph
-from langgraph.prebuilt import ToolExecutor
+from langgraph.prebuilt import ToolNode
 
 from backend.core.filters.filter_manager import filter_manager
 from backend.core.graph.event_types import (
@@ -64,7 +64,7 @@ class FlowOrchestrator:
             if hasattr(tool, 'to_langchain_tool'):
                 self.langchain_tools.append(tool.to_langchain_tool())
         
-        self.tool_executor = ToolExecutor(self.langchain_tools)
+        self.tool_node = ToolNode(self.langchain_tools)
         self.llm_node = llm_node
         self.graph = self._build_graph()
         
@@ -127,7 +127,13 @@ class FlowOrchestrator:
                     ))
                 
                 # Execute the tool
-                result = await self.tool_executor.ainvoke(tool_call)
+                tool_message = await self.tool_node.ainvoke([ToolMessage(
+                    content="",  # Content is not used for tool invocation
+                    tool_call_id=tool_call["id"],
+                    name=tool_call["name"],
+                    args=tool_call["args"]
+                )])
+                result = tool_message[0].content if isinstance(tool_message, list) else tool_message.content
                 
                 # Generate tool result event
                 if "event_callback" in state:

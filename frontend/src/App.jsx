@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useAgentStore } from './store/agentStore';
 import EnhancedChatPanel from './components/chat/EnhancedChatPanel.jsx';
 import Sidebar from './components/Sidebar';
-import ThemeToggle from './components/ui/ThemeToggle';
+import SystemSettings from './components/ui/SystemSettings';
 
 function App() {
   const initializeStore = useAgentStore((state) => state.initialize);
@@ -28,7 +28,7 @@ function App() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col">
         <div className="flex justify-end p-4">
-          <ThemeToggle />
+          <SystemSettings />
         </div>
         <EnhancedChatPanel />
       </main>

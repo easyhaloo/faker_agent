@@ -19,7 +19,14 @@ from backend.core.assembler.tool_spec import (
     ToolSpec
 )
 from backend.core.filters.filter_manager import filter_manager
-from backend.core.registry.base_registry import BaseTool
+from backend.core.prompts.assembler_prompts import (
+    ASSEMBLER_SYSTEM_MESSAGE,
+    TOOL_CHAIN_PROMPT_TEMPLATE,
+    TOOL_SPEC_FORMAT_TEMPLATE,
+    PARAMETER_FORMAT_TEMPLATE,
+    FALLBACK_PROMPT_TEMPLATE
+)
+from backend.core.tools.base import BaseTool
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -116,66 +123,30 @@ class LLMAssembler:
             params_text = ""
             for param_name, param_info in spec.parameters.items():
                 required = "REQUIRED" if param_info.get('required', True) else "OPTIONAL"
-                params_text += f"    - {param_name} ({param_info.get('type', 'string')}): {param_info.get('description', '')} [{required}]\n"
+                params_text += PARAMETER_FORMAT_TEMPLATE.format(
+                    name=param_name,
+                    type=param_info.get('type', 'string'),
+                    description=param_info.get('description', ''),
+                    required=required
+                ) + "\n"
             
-            tools_text += f"{i}. {spec.name}: {spec.description}\n"
+            # Format parameters section
+            formatted_params = ""
             if params_text:
-                tools_text += "   Parameters:\n"
-                tools_text += params_text
-            tools_text += "\n"
+                formatted_params = "   Parameters:\n" + params_text
+            
+            tools_text += TOOL_SPEC_FORMAT_TEMPLATE.format(
+                index=i,
+                name=spec.name,
+                description=spec.description,
+                parameters=formatted_params
+            ) + "\n"
             
         # Create the prompt
-        prompt = f"""
-        You are an AI assistant tasked with creating a tool execution plan to answer user queries.
-        
-        USER QUERY: "{query}"
-        
-        AVAILABLE TOOLS:
-        {tools_text}
-        
-        Based on the user query, create a step-by-step execution plan using the available tools.
-        Your output must follow these steps:
-        
-        1. ANALYSIS: Briefly analyze what the user is asking for (1-2 sentences)
-        2. PLAN: Create a step-by-step plan for answering the query (numbered list)
-        3. TOOL_CHAIN: Provide a JSON structure defining the tool chain to execute, following this schema:
-        
-        ```json
-        {{
-            "query": "original user query",
-            "plan": "brief description of the approach",
-            "tool_chain": {{
-                "nodes": [
-                    {{
-                        "id": "unique_node_id",
-                        "tool_call": {{
-                            "tool_name": "name_of_tool",
-                            "parameters": {{
-                                "param1": "value1",
-                                "param2": "value2"
-                            }}
-                        }},
-                        "dependencies": ["id_of_dependent_node"],
-                        "condition": "optional condition expression"
-                    }}
-                ],
-                "execution_order": "sequential"
-            }}
-        }}
-        ```
-        
-        IMPORTANT GUIDELINES:
-        - Only use tools from the provided list
-        - Ensure all required parameters are provided for each tool
-        - For simple queries, a single tool may be sufficient
-        - For complex queries, chain multiple tools together
-        - Use clear, unique IDs for each node (e.g., "node1", "node2")
-        - The "dependencies" field should list node IDs that must complete before this node executes
-        - Use "sequential" for the execution_order unless explicit dependencies are defined
-        - Do not add any explanations or text outside the JSON structure
-        
-        YOUR RESPONSE:
-        """
+        prompt = TOOL_CHAIN_PROMPT_TEMPLATE.format(
+            query=query,
+            tools_list=tools_text
+        )
         
         return prompt
     
@@ -228,7 +199,7 @@ class LLMAssembler:
             response = await completion(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "You are a tool chain planning assistant."},
+                    {"role": "system", "content": ASSEMBLER_SYSTEM_MESSAGE},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=self.temperature,

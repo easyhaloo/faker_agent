@@ -7,6 +7,9 @@ from typing import Dict
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# Import modules to ensure they are loaded
+import backend.modules.weather
+
 from backend.api.routes import router as api_router
 from backend.config.settings import settings
 

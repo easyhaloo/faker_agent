@@ -62,9 +62,23 @@ async def _create_flow_orchestrator(
     # Use the regular Agent's LLM node for simplicity
     agent = Agent()
     
+    # Create an adapter for the LLM node to handle different state formats
+    async def llm_node_adapter(state):
+        # If state is a dict (flow_orchestrator format), extract messages
+        if isinstance(state, dict):
+            messages = state.get("messages", [])
+        # If state is a list (agent_graph format), use as-is
+        elif isinstance(state, list):
+            messages = state
+        else:
+            messages = []
+        
+        # Call the original LLM node with the extracted messages
+        return await agent.graph._call_llm(messages)
+    
     # Create a flow orchestrator
     orchestrator = FlowOrchestrator(
-        llm_node=agent.graph._call_llm,
+        llm_node=llm_node_adapter,
         filter_strategy=filter_strategy,
         tool_tags=tool_tags
     )
@@ -72,7 +86,7 @@ async def _create_flow_orchestrator(
     return orchestrator
 
 
-@router.post("/agent/respond", response_model=AgentResponse)
+@router.post("/respond", response_model=AgentResponse)
 async def agent_respond(request: AgentRequest):
     """
     Send a query to the agent with protocol support.
@@ -162,7 +176,7 @@ async def agent_respond(request: AgentRequest):
         }
 
 
-@router.websocket("/agent/ws")
+@router.websocket("/ws")
 async def agent_websocket(websocket: WebSocket):
     """WebSocket endpoint for the agent."""
     try:
@@ -225,7 +239,7 @@ async def agent_websocket(websocket: WebSocket):
             pass
 
 
-@router.post("/agent/analyze", response_model=AgentResponse)
+@router.post("/analyze", response_model=AgentResponse)
 async def analyze_query(request: AgentRequest):
     """
     Analyze a query and return an execution plan.
@@ -256,7 +270,7 @@ async def analyze_query(request: AgentRequest):
         }
 
 
-@router.get("/agent/strategies", response_model=AgentResponse)
+@router.get("/strategies", response_model=AgentResponse)
 async def list_strategies():
     """
     List available filter strategies.

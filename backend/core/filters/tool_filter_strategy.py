@@ -9,7 +9,17 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Dict, List, Set, Type
 
-from backend.core.registry.base_registry import BaseTool
+from typing import Any, Dict, List, Set, Type, Protocol
+
+class BaseTool(Protocol):
+    """Protocol for tool classes to avoid circular imports."""
+    name: str
+    description: str
+    tags: Set[str]
+    priority: int
+    
+    def __call__(self, *args, **kwargs) -> Any:
+        ...
 
 # Configure logger
 logger = logging.getLogger(__name__)

@@ -118,10 +118,11 @@ faker_agent/
 │   │   ├── features/       # Feature modules
 │   │   └── services/       # API services
 ├── docs/                   # Documentation
-│   ├── architecture.md     # Architecture documentation
-│   ├── api_spec.md         # API specification
-│   ├── guide.md            # User guide
-│   ├── protocol_guide.md   # Protocol guide
+│   ├── architecture/       # Architecture documentation
+│   ├── backend/            # Backend documentation
+│   ├── frontend/           # Frontend documentation
+│   ├── design/             # Design documentation
+│   ├── standards/          # Standards documentation
 │   └── progress/           # Progress reports
 └── tests/                  # Test suite
 ```
@@ -135,10 +136,10 @@ When running the backend, the OpenAPI documentation is available at:
 
 ## 文档
 
-- [使用指南](docs/guide.md) - 详细使用说明
-- [API 规范](docs/api_spec.md) - API 接口文档
-- [架构设计](docs/architecture.md) - 系统架构说明
-- [协议指南](docs/protocol_guide.md) - 协议使用详解
+- [使用指南](docs/backend/guide.md) - 详细使用说明
+- [API 规范](docs/architecture/api_spec.md) - API 接口文档
+- [架构设计](docs/architecture/system_design.md) - 系统架构说明
+- [协议指南](docs/frontend/protocol_guide.md) - 协议使用详解
 - [进度报告](docs/progress/) - 开发进度记录
 
 ## 架构

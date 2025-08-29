@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.graph import END, MessageGraph
-from langgraph.prebuilt import ToolExecutor
+from langgraph.prebuilt import ToolNode
 
 from backend.core.tools.registry import tool_registry
 
@@ -19,7 +19,7 @@ class AgentGraph:
     
     def __init__(self):
         self.tools = tool_registry.get_all_langchain_tools()
-        self.tool_executor = ToolExecutor(self.tools)
+        self.tool_node = ToolNode(self.tools)
         self.graph = self._build_graph()
     
     def _build_graph(self) -> MessageGraph:
@@ -80,7 +80,13 @@ class AgentGraph:
                        tool_call["name"], tool_call["args"])
             
             # Execute the tool
-            result = await self.tool_executor.ainvoke(tool_call)
+            tool_message = await self.tool_node.ainvoke([ToolMessage(
+                content="",  # Content is not used for tool invocation
+                tool_call_id=tool_call["id"],
+                name=tool_call["name"],
+                args=tool_call["args"]
+            )])
+            result = tool_message[0].content if isinstance(tool_message, list) else tool_message.content
             
             # Create tool message
             tool_message = ToolMessage(

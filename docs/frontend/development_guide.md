@@ -12,6 +12,10 @@
 - Axios 用于 HTTP 请求
 - @tanstack/react-query 用于服务器状态管理（计划引入）
 
+### 显示设置
+- CSS 变量用于动态样式调整
+- localStorage 用于设置持久化
+
 ### 表单处理
 - react-hook-form + zod 用于表单验证（计划引入）
 
@@ -48,6 +52,7 @@ src/
 ├── lib/                 # 工具函数和库
 ├── services/            # API 服务
 └── store/               # 状态管理
+    └── displayStore.js  # 显示设置状态管理
 ```
 
 ### 命名约定
@@ -67,6 +72,7 @@ src/
 - 全局应用状态使用 Zustand
 - 服务器状态使用 React Query
 - 状态更新使用不可变模式
+- 使用 Zustand 中间件进行状态持久化
 
 ### 错误处理
 - 所有异步操作都需要错误处理
@@ -81,9 +87,11 @@ src/
 - 图片懒加载和优化
 
 ### 测试
-- 单元测试使用 Jest 和 React Testing Library
+- 单元测试使用 Vitest 和 React Testing Library
 - 组件测试关注用户行为而非实现细节
 - 集成测试覆盖关键用户流程
+- 测试文件放在前端目录下的 `tests` 文件夹中
+- 使用 `*.test.jsx` 命名测试文件
 
 ## 最佳实践
 
@@ -103,3 +111,9 @@ src/
 - 防止 XSS 攻击
 - 使用 HTTPS 连接
 - 保护敏感信息
+
+### 用户体验
+- 提供直观的设置界面
+- 保存用户偏好设置
+- 支持多种显示模式
+- 确保设置更改即时生效

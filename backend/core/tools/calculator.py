@@ -9,19 +9,20 @@ from backend.core.tools.base import BaseTool, ToolParameter
 class CalculatorTool(BaseTool):
     """A calculator tool that performs basic mathematical operations."""
     
-    def __init__(self):
-        super().__init__(
-            name="calculator",
-            description="Performs basic mathematical operations (+, -, *, /, ^, sqrt)",
-            parameters=[
-                ToolParameter(
-                    name="expression",
-                    type="string",
-                    description="Mathematical expression to evaluate (e.g., '2 + 3 * 4')",
-                    required=True
-                )
-            ]
-        )
+    name = "calculator"
+    description = "Performs basic mathematical operations (+, -, *, /, ^, sqrt)"
+    tags = ["math", "calculation"]
+    priority = 5
+    
+    def get_parameters(self):
+        return [
+            {
+                "name": "expression",
+                "type": "string",
+                "description": "Mathematical expression to evaluate (e.g., '2 + 3 * 4')",
+                "required": True
+            }
+        ]
     
     async def run(self, expression: str) -> dict:
         """

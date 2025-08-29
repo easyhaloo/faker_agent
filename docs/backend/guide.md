@@ -237,6 +237,11 @@ class MyCustomProtocol(BaseProtocol):
 protocol_factory.register_protocol("custom", MyCustomProtocol())
 ```
 
+
+## 单元测试
+
+请在backend目录下创建tests，所有的测试用例放在该目录下
+
 ## 故障排除
 
 ### 常见问题

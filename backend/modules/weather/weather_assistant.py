@@ -13,6 +13,12 @@ import litellm
 from litellm import completion
 
 from backend.config.settings import settings
+from backend.core.prompts.weather_prompts import (
+    PARAM_EXTRACTION_SYSTEM_MESSAGE,
+    PARAM_EXTRACTION_PROMPT_TEMPLATE,
+    RESPONSE_GENERATION_SYSTEM_MESSAGE,
+    WEATHER_RESPONSE_PROMPT_TEMPLATE
+)
 from backend.modules.weather.weather_tool import WeatherTool
 
 # Configure logger
@@ -100,44 +106,14 @@ class WeatherAssistant:
         }
         
         # Create a prompt for parameter extraction
-        extraction_prompt = f"""
-        Extract weather query parameters from the following user request:
-        
-        "{query}"
-        
-        Extract the following parameters:
-        1. city: The city name the user is asking about
-        2. country: The country code (if specified)
-        3. units: 'metric' or 'imperial' based on user preference
-        4. forecast_days: Number of days for forecast (0-7), 0 means current weather only
-        
-        Return your answer in this exact JSON format:
-        {{
-            "city": "extracted city name",
-            "country": "extracted country code or null",
-            "units": "metric or imperial",
-            "forecast_days": number from 0-7
-        }}
-        
-        If a parameter is not specified, use these defaults:
-        - city: Must be extracted from the query (no default)
-        - country: null
-        - units: "metric"
-        - forecast_days: 0 for current weather, or appropriate value if forecast is requested
-        
-        Determine forecast_days based on whether the user is asking about:
-        - Current weather (0 days)
-        - Tomorrow/next day (1 day)
-        - This week/next few days (3-5 days)
-        - Extended forecast (7 days)
-        """
+        extraction_prompt = PARAM_EXTRACTION_PROMPT_TEMPLATE.format(query=query)
         
         try:
             # Call the LLM for parameter extraction
             response = await completion(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "You are a weather query parser that extracts parameters from natural language."},
+                    {"role": "system", "content": PARAM_EXTRACTION_SYSTEM_MESSAGE},
                     {"role": "user", "content": extraction_prompt}
                 ],
                 temperature=0.0,  # Use low temperature for deterministic results
@@ -205,32 +181,17 @@ class WeatherAssistant:
             Natural language response about the weather
         """
         # Create a prompt for response generation
-        response_prompt = f"""
-        Generate a natural language response to the user's weather query:
-        
-        User query: "{query}"
-        
-        Weather data: {weather_data}
-        
-        Guidelines for your response:
-        1. Be conversational and friendly
-        2. Focus on answering the specific question asked
-        3. Include relevant weather details from the provided data
-        4. For current weather, mention temperature, conditions, and feels like
-        5. For forecasts, summarize the trends and notable weather events
-        6. Keep the response concise (2-3 sentences for current weather, 3-5 for forecast)
-        7. Use natural phrasing like "It's currently sunny and 25°C in Beijing"
-        8. If forecast data is available, include a brief summary of upcoming weather
-        
-        Only include information that is present in the weather data.
-        """
+        response_prompt = WEATHER_RESPONSE_PROMPT_TEMPLATE.format(
+            query=query,
+            weather_data=weather_data
+        )
         
         try:
             # Call the LLM for response generation
             response = await completion(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "You are a helpful weather assistant that provides clear and concise weather information."},
+                    {"role": "system", "content": RESPONSE_GENERATION_SYSTEM_MESSAGE},
                     {"role": "user", "content": response_prompt}
                 ],
                 temperature=self.temperature,

@@ -10,7 +10,8 @@ import random
 from datetime import datetime
 from typing import Any, AsyncGenerator, Dict, Optional
 
-from backend.core.registry.base_registry import BaseTool, registry
+from backend.core.tools.base import BaseTool
+from backend.core.tools.registry import tool_registry
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -28,27 +29,29 @@ class StreamingWeatherTool(BaseTool):
     description = "Queries weather information with streaming updates"
     tags = ["weather", "data", "streaming"]
     priority = 15
-    parameters = [
-        {
-            "name": "city",
-            "type": "string",
-            "description": "The city name to get weather for",
-            "required": True
-        },
-        {
-            "name": "country",
-            "type": "string",
-            "description": "Optional country code to disambiguate city names",
-            "required": False
-        },
-        {
-            "name": "detailed",
-            "type": "boolean",
-            "description": "Whether to return detailed weather information",
-            "required": False,
-            "default": False
-        }
-    ]
+    
+    def get_parameters(self):
+        return [
+            {
+                "name": "city",
+                "type": "string",
+                "description": "The city name to get weather for",
+                "required": True
+            },
+            {
+                "name": "country",
+                "type": "string",
+                "description": "Optional country code to disambiguate city names",
+                "required": False
+            },
+            {
+                "name": "detailed",
+                "type": "boolean",
+                "description": "Whether to return detailed weather information",
+                "required": False,
+                "default": False
+            }
+        ]
     
     async def run(
         self, 
@@ -237,4 +240,4 @@ class StreamingWeatherTool(BaseTool):
 
 
 # Register the streaming weather tool
-registry.register_tool(StreamingWeatherTool)
+tool_registry.register_tool(StreamingWeatherTool())

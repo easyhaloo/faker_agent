@@ -3,6 +3,7 @@ Event types for the LangGraph orchestrator.
 """
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
+import time
 
 from pydantic import BaseModel, Field
 
@@ -21,7 +22,7 @@ class BaseEvent(BaseModel):
     """Base event model."""
     
     type: EventType
-    timestamp: float = Field(default_factory=lambda: import time; return time.time())
+    timestamp: float = Field(default_factory=time.time)
 
 
 class ToolCallStartEvent(BaseEvent):

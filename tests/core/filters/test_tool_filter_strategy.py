@@ -9,7 +9,7 @@ from backend.core.filters.tool_filter_strategy import (
     TagToolFilter,
     ThresholdToolFilter
 )
-from backend.core.registry.base_registry import BaseTool
+from backend.core.tools.base import BaseTool
 
 
 # Create some mock tools for testing
@@ -18,6 +18,12 @@ class MockTool1(BaseTool):
     description = "Mock tool 1"
     tags = ["tag1", "tag2"]
     priority = 10
+    
+    def get_parameters(self):
+        return []
+    
+    async def run(self, **kwargs):
+        return {"result": "mock_tool_1_result"}
 
 
 class MockTool2(BaseTool):
@@ -25,6 +31,12 @@ class MockTool2(BaseTool):
     description = "Mock tool 2"
     tags = ["tag2", "tag3"]
     priority = 20
+    
+    def get_parameters(self):
+        return []
+    
+    async def run(self, **kwargs):
+        return {"result": "mock_tool_2_result"}
 
 
 class MockTool3(BaseTool):
@@ -32,6 +44,12 @@ class MockTool3(BaseTool):
     description = "Mock tool 3"
     tags = ["tag3", "tag4"]
     priority = 30
+    
+    def get_parameters(self):
+        return []
+    
+    async def run(self, **kwargs):
+        return {"result": "mock_tool_3_result"}
 
 
 class MockTool4(BaseTool):
@@ -39,6 +57,12 @@ class MockTool4(BaseTool):
     description = "Mock tool 4"
     tags = ["tag4", "tag5"]
     priority = 5
+    
+    def get_parameters(self):
+        return []
+    
+    async def run(self, **kwargs):
+        return {"result": "mock_tool_4_result"}
 
 
 @pytest.fixture

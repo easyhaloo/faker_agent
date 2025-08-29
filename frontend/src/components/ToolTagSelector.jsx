@@ -24,10 +24,23 @@ const ToolTagSelector = () => {
   useEffect(() => {
     fetchAvailableTools();
   }, [fetchAvailableTools]);
+  
+  // 调试：打印 availableTools 的值和类型
+  useEffect(() => {
+    console.log('availableTools:', availableTools);
+    console.log('availableTools type:', typeof availableTools);
+    console.log('Is array:', Array.isArray(availableTools));
+  }, [availableTools]);
 
   // 从可用工具中提取所有唯一标签
   const extractAllTags = () => {
-    if (!availableTools || availableTools.length === 0) return [];
+    // 检查 availableTools 是否为数组
+    if (!Array.isArray(availableTools)) {
+      console.warn('availableTools is not an array:', availableTools);
+      return [];
+    }
+    
+    if (availableTools.length === 0) return [];
     
     const allTags = new Set();
     availableTools.forEach(tool => {

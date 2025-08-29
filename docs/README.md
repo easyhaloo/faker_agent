@@ -8,33 +8,35 @@
 
 ```
 docs/
-├── architecture/       # 架构文档
-│   ├── overview.md     # 系统架构概览
-│   └── api_spec.md     # API 规范
+├── architecture/          # 架构文档
+│   ├── overview.md        # 系统架构概览
+│   ├── system_design.md   # 系统设计
+│   ├── protocol_integration.md # 协议集成
+│   └── api_spec.md        # API 规范
 │
-├── backend/            # 后端文档
-│   ├── tools.md        # 工具系统
-│   ├── graph.md        # LangGraph 工作流
-│   └── protocols.md    # 协议支持
+├── backend/               # 后端文档
+│   ├── guide.md           # 后端指南
+│   └── usage_guide.md     # 使用指南
 │
-├── frontend/           # 前端文档
-│   ├── components.md   # 组件说明
-│   ├── services.md     # 服务层
-│   └── protocol_support.md  # 多协议支持
+├── frontend/              # 前端文档
+│   ├── development_guide.md # 开发指南
+│   ├── protocol_guide.md    # 协议使用指南
+│   ├── protocol_support.md  # 多协议支持
+│   ├── step.md            # 开发步骤
+│   └── summary.md         # 总结
 │
-├── design/             # 设计文档
-│   ├── ui_design.md    # UI设计规范
-│   └── workflow.md     # 工作流设计
+├── design/                # 设计文档
+│   ├── ui_design.md       # UI设计规范
+│   └── workflow.md        # 工作流设计
 │
-├── standards/          # 规范文档
-│   ├── code_style.md   # 代码风格
-│   ├── commit.md       # 提交规范
-│   └── doc_standards.md # 文档规范
+├── standards/             # 规范文档
+│   ├── code_style.md      # 代码风格
+│   └── doc_standards.md   # 文档规范
 │
-├── progress/           # 进度文档
-│   └── YYYY-MM-DD.md   # 日期格式的进度报告
+├── progress/              # 进度文档
+│   └── YYYY-MM-DD.md      # 日期格式的进度报告
 │
-└── README.md           # 文档中心说明
+└── README.md              # 文档中心说明
 ```
 
 ## 文档类型说明

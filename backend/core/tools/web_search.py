@@ -10,25 +10,26 @@ from backend.core.tools.base import BaseTool, ToolParameter
 class WebSearchTool(BaseTool):
     """A web search tool that uses DuckDuckGo API."""
     
-    def __init__(self):
-        super().__init__(
-            name="web_search",
-            description="Searches the web for information using DuckDuckGo",
-            parameters=[
-                ToolParameter(
-                    name="query",
-                    type="string",
-                    description="Search query",
-                    required=True
-                ),
-                ToolParameter(
-                    name="max_results",
-                    type="integer",
-                    description="Maximum number of results to return (default: 5)",
-                    required=False
-                )
-            ]
-        )
+    name = "web_search"
+    description = "Searches the web for information using DuckDuckGo"
+    tags = ["search", "web"]
+    priority = 10
+    
+    def get_parameters(self):
+        return [
+            {
+                "name": "query",
+                "type": "string",
+                "description": "Search query",
+                "required": True
+            },
+            {
+                "name": "max_results",
+                "type": "integer",
+                "description": "Maximum number of results to return (default: 5)",
+                "required": False
+            }
+        ]
     
     async def run(self, query: str, max_results: int = 5) -> dict:
         """

@@ -4,7 +4,8 @@ Weather assistant tool that can be used by the agent.
 import logging
 from typing import Any, Dict
 
-from backend.core.registry.base_registry import BaseTool, registry
+from backend.core.tools.base import BaseTool
+from backend.core.tools.registry import tool_registry
 from backend.modules.weather.weather_assistant import weather_assistant
 
 # Configure logger
@@ -18,14 +19,16 @@ class WeatherAssistantTool(BaseTool):
     description = "Get weather information by asking questions in natural language"
     tags = ["weather", "assistant", "natural_language"]
     priority = 20
-    parameters = [
-        {
-            "name": "query",
-            "type": "string",
-            "description": "Natural language question about weather, e.g., 'What's the weather like in Beijing?'",
-            "required": True
-        }
-    ]
+    
+    def get_parameters(self):
+        return [
+            {
+                "name": "query",
+                "type": "string",
+                "description": "Natural language question about weather, e.g., 'What's the weather like in Beijing?'",
+                "required": True
+            }
+        ]
     
     async def run(self, query: str) -> Dict[str, Any]:
         """
@@ -50,4 +53,4 @@ class WeatherAssistantTool(BaseTool):
 
 
 # Register the weather assistant tool
-registry.register_tool(WeatherAssistantTool)
+tool_registry.register_tool(WeatherAssistantTool())

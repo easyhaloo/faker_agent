@@ -29,6 +29,8 @@ class ToolMetadata(BaseModel):
     description: str
     parameters: List[ToolParameter] = Field(default_factory=list)
     return_schema: Dict[str, Any] = Field(default_factory=dict)
+    tags: List[str] = Field(default_factory=list)
+    priority: int = 0
 
 
 class BaseTool(ABC):
@@ -36,12 +38,16 @@ class BaseTool(ABC):
     
     name: str = "base_tool"
     description: str = "Base tool class"
+    tags: List[str] = []
+    priority: int = 0
     
     def __init__(self):
         self.metadata = ToolMetadata(
             name=self.name,
             description=self.description,
-            parameters=self.get_parameters()
+            parameters=self.get_parameters(),
+            tags=self.tags,
+            priority=self.priority
         )
     
     @abstractmethod
