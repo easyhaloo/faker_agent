@@ -102,7 +102,11 @@
       "Bash(curl -X POST http://localhost:8000/api/agent/v1/respond -H \"Content-Type: application/json\" -d '{\"\"input\"\": \"\"你是谁\"\", \"\"protocol\"\": \"\"http\"\", \"\"mode\"\": \"\"sync\"\"}')",
       "Bash(python -m pytest tests/ -v)",
       "Bash(pip install pytest-asyncio)",
-      "Bash(python -m pytest tests/core/filters/test_tool_filter_strategy.py -v)"
+      "Bash(python -m pytest tests/core/filters/test_tool_filter_strategy.py -v)",
+      "Bash(curl -X POST http://localhost:8000/api/agent/task -H \"Content-Type: application/json\" -d '{\"\"query\"\": \"\"北京天气怎么样？\"\"}')",
+      "Bash(node debug_tool_tags.js)",
+      "Bash(curl -X POST http://localhost:8000/api/agent/task -H \"Content-Type: application/json\" -d '{\"\"query\"\": \"\"任务规划测试\"\"}')",
+      "WebFetch(domain:python.langchain.com)"
     ],
     "deny": [],
     "ask": []

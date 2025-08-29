@@ -11,7 +11,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from backend.api.agent_routes import router as agent_router
-from backend.core.simple_agent import SimpleAgent as Agent
+from backend.core.agent import Agent
 from backend.core.tools.registry import tool_registry
 from backend.modules.weather.routes import router as weather_router
 

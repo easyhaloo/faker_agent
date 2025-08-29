@@ -73,6 +73,56 @@ class LLMAssembler:
             
         logger.info(f"Initialized LLMAssembler with {len(self.tools)} tools")
     
+    async def get_response(self, query: str, messages: List[Any] = None) -> Any:
+        """
+        Get a response from the LLM for a user query.
+        
+        Args:
+            query: The user's query
+            messages: Optional list of previous messages for context
+            
+        Returns:
+            LLM response object
+        """
+        try:
+            # Prepare messages for the LLM
+            llm_messages = []
+            
+            # Add system message
+            llm_messages.append({"role": "system", "content": ASSEMBLER_SYSTEM_MESSAGE})
+            
+            # Add previous messages if provided
+            if messages:
+                for msg in messages:
+                    if hasattr(msg, 'role') and hasattr(msg, 'content'):
+                        llm_messages.append({"role": msg.role, "content": msg.content})
+                    elif isinstance(msg, dict) and 'role' in msg and 'content' in msg:
+                        llm_messages.append(msg)
+            
+            # Add current query
+            llm_messages.append({"role": "user", "content": query})
+            
+            # Call the LLM
+            response = await completion(
+                model=self.model,
+                messages=llm_messages,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens
+            )
+            
+            # Return the response
+            return response.choices[0].message
+            
+        except Exception as e:
+            logger.error(f"Error getting LLM response: {e}")
+            # Return a simple fallback response
+            class FallbackMessage:
+                def __init__(self):
+                    self.content = f"抱歉，我在处理您的请求时遇到了问题: {str(e)}"
+                    self.tool_calls = None
+                    
+            return FallbackMessage()
+    
     def _get_tool_specs(self) -> List[ToolSpec]:
         """
         Get tool specifications for the available tools.

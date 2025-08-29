@@ -42,12 +42,22 @@ class Agent:
                 "data": {
                     "query": query,
                     "result": final_message.content if final_message else "No response",
-                    "actions": [msg.dict() for msg in messages]
+                    "actions": [
+                        {
+                            "role": getattr(msg, 'role', 'unknown'),
+                            "content": getattr(msg, 'content', str(msg)),
+                            "additional_kwargs": getattr(msg, 'additional_kwargs', {})
+                        } 
+                        for msg in messages
+                    ]
                 }
             }
         except Exception as e:
             logger.error(f"Error processing query: {e}")
             return {
                 "status": "error",
-                "error": str(e)
+                "error": {
+                    "code": "PROCESSING_ERROR",
+                    "message": str(e)
+                }
             }

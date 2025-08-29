@@ -38,6 +38,9 @@ class FlowOrchestrator:
     3. Unified event format for protocol layer
     """
     
+    # Class variable to store additional fields for current execution
+    _current_additional_fields = {}
+    
     def __init__(
         self,
         llm_node: Callable,
@@ -99,13 +102,45 @@ class FlowOrchestrator:
     async def _call_llm(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Call the LLM with the current state."""
         try:
-            # Call the provided LLM node function
-            result = await self.llm_node(state)
+            # Convert messages to dict format for LangGraph compatibility
+            if isinstance(state, dict) and "messages" in state:
+                # Convert message objects to dicts if needed
+                converted_messages = []
+                for msg in state["messages"]:
+                    if hasattr(msg, 'dict') and callable(getattr(msg, 'dict')):
+                        # If it's a message object with a dict method, use it
+                        converted_messages.append(msg.dict())
+                    elif hasattr(msg, '__dict__'):
+                        # If it's an object with __dict__, convert manually
+                        msg_dict = {
+                            "content": getattr(msg, 'content', ''),
+                            "role": getattr(msg, 'role', 'user')  # Default to user if no role
+                        }
+                        # Add any additional attributes
+                        for key, value in msg.__dict__.items():
+                            if key not in msg_dict:
+                                msg_dict[key] = value
+                        converted_messages.append(msg_dict)
+                    elif isinstance(msg, dict):
+                        # If it's already a dict, keep as is
+                        converted_messages.append(msg)
+                    else:
+                        # Convert to dict with basic properties
+                        converted_messages.append({
+                            "content": str(msg),
+                            "role": "user"
+                        })
+                # Create a new state with converted messages
+                converted_state = state.copy()
+                converted_state["messages"] = converted_messages
+                result = await self.llm_node(converted_state)
+            else:
+                result = await self.llm_node(state)
             return result
         except Exception as e:
             logger.error(f"Error in LLM call: {e}")
             # Return an empty result to avoid breaking the flow
-            return {"messages": state.get("messages", [])}
+            return {"messages": state.get("messages", []) if isinstance(state, dict) else []}
     
     async def _execute_tools(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Execute tools based on LLM output."""
@@ -119,8 +154,8 @@ class FlowOrchestrator:
         for tool_call in last_message.tool_calls:
             try:
                 # Generate tool start event
-                if "event_callback" in state:
-                    await state["event_callback"](ToolCallStartEvent(
+                if "event_callback" in FlowOrchestrator._current_additional_fields:
+                    await FlowOrchestrator._current_additional_fields["event_callback"](ToolCallStartEvent(
                         tool_name=tool_call["name"],
                         tool_args=tool_call["args"],
                         tool_call_id=tool_call["id"]
@@ -136,8 +171,8 @@ class FlowOrchestrator:
                 result = tool_message[0].content if isinstance(tool_message, list) else tool_message.content
                 
                 # Generate tool result event
-                if "event_callback" in state:
-                    await state["event_callback"](ToolCallResultEvent(
+                if "event_callback" in FlowOrchestrator._current_additional_fields:
+                    await FlowOrchestrator._current_additional_fields["event_callback"](ToolCallResultEvent(
                         tool_name=tool_call["name"],
                         tool_call_id=tool_call["id"],
                         result=result
@@ -155,8 +190,8 @@ class FlowOrchestrator:
                 logger.error(f"Error executing tool '{tool_call['name']}': {e}")
                 
                 # Generate error event
-                if "event_callback" in state:
-                    await state["event_callback"](ToolCallResultEvent(
+                if "event_callback" in FlowOrchestrator._current_additional_fields:
+                    await FlowOrchestrator._current_additional_fields["event_callback"](ToolCallResultEvent(
                         tool_name=tool_call["name"],
                         tool_call_id=tool_call["id"],
                         result=None,
@@ -209,16 +244,25 @@ class FlowOrchestrator:
             # Create initial state
             state = {"messages": [human_message]}
             
+            # Store additional fields in class variable
+            FlowOrchestrator._current_additional_fields = {}
+            
             # Add conversation ID if provided
             if conversation_id:
-                state["conversation_id"] = conversation_id
+                FlowOrchestrator._current_additional_fields["conversation_id"] = conversation_id
                 
             # Add event callback if provided
             if event_callback:
-                state["event_callback"] = event_callback
+                FlowOrchestrator._current_additional_fields["event_callback"] = event_callback
             
-            # Invoke the graph
+            # Invoke the graph with only the messages
             result = await self.graph.ainvoke(state)
+            
+            # Add the additional fields back to the result for use in callbacks
+            result.update(FlowOrchestrator._current_additional_fields)
+            
+            # Clear the class variable
+            FlowOrchestrator._current_additional_fields = {}
             
             # Generate final event
             if event_callback:

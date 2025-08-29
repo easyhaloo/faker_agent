@@ -73,8 +73,12 @@ async def _create_flow_orchestrator(
         else:
             messages = []
         
-        # Call the original LLM node with the extracted messages
-        return await agent.graph._call_llm(messages)
+        # Convert messages to the format expected by LangGraph
+        # LangGraph expects a dict with 'messages' key containing message objects
+        langgraph_state = {"messages": messages}
+        
+        # Call the original LLM node with the converted state
+        return await agent.graph._call_llm(langgraph_state)
     
     # Create a flow orchestrator
     orchestrator = FlowOrchestrator(

@@ -9,6 +9,7 @@ from langgraph.graph import END, MessageGraph
 from langgraph.prebuilt import ToolNode
 
 from backend.core.tools.registry import tool_registry
+from backend.core.assembler.llm_assembler import assembler
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -50,21 +51,56 @@ class AgentGraph:
     
     async def _call_llm(self, state: List[Any]) -> Dict[str, Any]:
         """Call the LLM with the current state."""
-        # In a real implementation, this would call an actual LLM
-        # For now, we'll simulate a response
         logger.info("Calling LLM with state: %s", state)
         
-        # Simple simulation - in reality, this would be an LLM call
-        # We'll just return a predefined response for demonstration
-        response = AIMessage(content="Calling weather tool", tool_calls=[
-            {
-                "name": "weather_query",
-                "args": {"city": "Beijing"},
-                "id": "tool_call_1"
-            }
-        ])
+        # Use the LLM assembler to get a response
+        # Handle different state formats
+        if isinstance(state, dict):
+            messages = state.get("messages", [])
+        elif isinstance(state, list):
+            messages = state
+        else:
+            messages = []
         
-        return {"messages": [response]}
+        # Get the last message content
+        if messages:
+            last_message = messages[-1]
+            query = last_message.content if hasattr(last_message, 'content') else str(last_message)
+        else:
+            query = "Hello"
+        
+        try:
+            # Use the assembler to get a response
+            response = await assembler.get_response(query, messages)
+            
+            # If the response contains tool calls, convert them to the proper format
+            if hasattr(response, 'tool_calls') and response.tool_calls:
+                ai_message_dict = {
+                    "content": response.content,
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "name": tool_call.name if hasattr(tool_call, 'name') else tool_call["name"],
+                            "args": tool_call.arguments if hasattr(tool_call, 'arguments') else tool_call["args"],
+                            "id": f"tool_call_{i}"
+                        }
+                        for i, tool_call in enumerate(response.tool_calls)
+                    ]
+                }
+            else:
+                # Simple text response
+                ai_message_dict = {
+                    "content": response.content if hasattr(response, 'content') else str(response),
+                    "role": "assistant"
+                }
+            
+            return {"messages": [ai_message_dict]}
+            
+        except Exception as e:
+            logger.error(f"Error calling LLM: {e}")
+            # Fallback to simple response
+            response_text = f"我收到了您的查询。由于技术问题，我目前无法完全处理它。错误: {str(e)}"
+            return {"messages": [{"content": response_text, "role": "assistant"}]}
     
     async def _execute_tools(self, state: List[Any]) -> Dict[str, Any]:
         """Execute tools based on LLM output."""
@@ -80,13 +116,13 @@ class AgentGraph:
                        tool_call["name"], tool_call["args"])
             
             # Execute the tool
-            tool_message = await self.tool_node.ainvoke([ToolMessage(
+            tool_message = await self.tool_node.ainvoke(ToolMessage(
                 content="",  # Content is not used for tool invocation
                 tool_call_id=tool_call["id"],
                 name=tool_call["name"],
                 args=tool_call["args"]
-            )])
-            result = tool_message[0].content if isinstance(tool_message, list) else tool_message.content
+            ))
+            result = tool_message.content if hasattr(tool_message, 'content') else str(tool_message)
             
             # Create tool message
             tool_message = ToolMessage(

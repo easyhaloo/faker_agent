@@ -34,17 +34,14 @@ const ToolTagSelector = () => {
 
   // 从可用工具中提取所有唯一标签
   const extractAllTags = () => {
-    // 检查 availableTools 是否为数组
-    if (!Array.isArray(availableTools)) {
-      console.warn('availableTools is not an array:', availableTools);
-      return [];
-    }
+    // 确保 availableTools 是数组
+    const tools = Array.isArray(availableTools) ? availableTools : [];
     
-    if (availableTools.length === 0) return [];
+    if (tools.length === 0) return [];
     
     const allTags = new Set();
-    availableTools.forEach(tool => {
-      if (tool.tags && Array.isArray(tool.tags)) {
+    tools.forEach(tool => {
+      if (tool && tool.tags && Array.isArray(tool.tags)) {
         tool.tags.forEach(tag => allTags.add(tag));
       }
     });
