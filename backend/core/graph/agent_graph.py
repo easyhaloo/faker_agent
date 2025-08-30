@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Union
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.language_models import BaseChatModel
 from langgraph.graph import END, StateGraph
+from typing import TypedDict
 from langgraph.prebuilt import ToolNode
 
 from backend.core.llm import get_chat_model
@@ -37,6 +38,10 @@ class AgentGraph:
         self.tools = tool_registry.get_all_langchain_tools()
         self.tool_node = ToolNode(self.tools)
         self.graph = self._build_graph()
+    
+    # Define state structure
+    class State(TypedDict):
+        messages: list
     
     def _build_graph(self) -> StateGraph:
         """Build the agent graph."""

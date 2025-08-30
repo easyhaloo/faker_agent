@@ -1,12 +1,15 @@
 """
 LLM-based Assembler for generating tool chains from user queries.
+
+This module provides an LLM-based Assembler that analyzes user queries and
+generates a plan for executing the appropriate tools to fulfill the request.
+It uses the LLM to determine which tools to use and in what order, validating
+the generated plan against the available tools.
 """
 import json
 import re
-from typing import Any, Dict, List, Optional, Union
-
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
-from langchain_core.language_models import BaseChatModel
+import time
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from backend.config.settings import settings
 from backend.core.assembler.tool_spec import (
@@ -17,8 +20,11 @@ from backend.core.assembler.tool_spec import (
     ToolNode,
     ToolSpec
 )
+from backend.core.contracts.base import Message
+from backend.core.contracts.execution import ExecutionPlan as ContractExecutionPlan
+from backend.core.contracts.models import ModelRequest
 from backend.core.filters.filter_manager import filter_manager
-from backend.core.llm import get_chat_model, get_assembler_model
+from backend.core.infrastructure.llm.factory import llm_factory
 from backend.core.prompts.assembler_prompts import (
     ASSEMBLER_SYSTEM_MESSAGE,
     TOOL_CHAIN_PROMPT_TEMPLATE,
@@ -27,8 +33,8 @@ from backend.core.prompts.assembler_prompts import (
     FALLBACK_PROMPT_TEMPLATE
 )
 from backend.core.tools.base import BaseTool
+from backend.core.tools.registry import tool_registry
 from backend.core.utils.logging import get_logger
-from backend.core.utils.message_formatter import message_formatter
 
 # Configure logger
 logger = get_logger(__name__)
@@ -39,14 +45,19 @@ class LLMAssembler:
     LLM-based Assembler for generating tool chains from user queries.
     
     This class uses an LLM to analyze user queries and generate a plan
-    for executing the appropriate tools to fulfill the request.
+    for executing the appropriate tools to fulfill the request. It integrates
+    with the LLM infrastructure and tool registry to provide a flexible
+    and extensible planning system.
     """
     
     def __init__(
         self,
         llm_model: Optional[BaseChatModel] = None,
         filter_strategy: Optional[str] = None,
-        tool_tags: Optional[List[str]] = None
+        tool_tags: Optional[List[str]] = None,
+        model: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None
     ):
         """
         Initialize the LLM Assembler.
@@ -55,6 +66,9 @@ class LLMAssembler:
             llm_model: LangChain chat model to use (or None to use default)
             filter_strategy: Optional filter strategy name
             tool_tags: Optional tool tags to pre-filter by
+            model: Optional model name to use
+            temperature: Optional temperature for generation
+            max_tokens: Optional maximum tokens to generate
         """
         # Get filtered tools
         self.tools = filter_manager.filter_tools(
@@ -62,10 +76,15 @@ class LLMAssembler:
             tags=tool_tags
         )
         
-        # Set up LLM model
-        self.llm_model = llm_model or get_assembler_model()
+        # LLM settings
+        self.model = model or settings.LITELLM_MODEL
+        self.temperature = temperature if temperature is not None else 0.0  # Use low temperature for deterministic planning
+        self.max_tokens = max_tokens or settings.LITELLM_MAX_TOKENS
+        
+        # Get LLM client from factory
+        self.llm_client = llm_factory.get_default_client()
             
-        logger.info(f"Initialized LLMAssembler with {len(self.tools)} tools using {self.llm_model.__class__.__name__}")
+        logger.info(f"Initialized LLMAssembler with {len(self.tools)} tools and model {self.model}")
     
     async def get_response(self, query: str, messages: List[Any] = None) -> Any:
         """
@@ -83,31 +102,63 @@ class LLMAssembler:
             langchain_messages = []
             
             # Add system message
-            langchain_messages.append(SystemMessage(content=ASSEMBLER_SYSTEM_MESSAGE))
+            llm_messages = []
+            llm_messages.append(Message(
+                role="system", 
+                content=ASSEMBLER_SYSTEM_MESSAGE
+            ))
             
             # Add history messages if provided
             if messages:
                 for msg in messages:
-                    if isinstance(msg, (SystemMessage, HumanMessage, AIMessage, ToolMessage)):
-                        # Already in LangChain format
-                        langchain_messages.append(msg)
-                    else:
-                        # Convert to LangChain format
-                        langchain_messages.append(message_formatter.to_langchain_format(msg))
+                    if hasattr(msg, 'role') and hasattr(msg, 'content'):
+                        llm_messages.append(Message(
+                            role=msg.role, 
+                            content=msg.content
+                        ))
+                    elif isinstance(msg, dict) and 'role' in msg and 'content' in msg:
+                        llm_messages.append(Message(
+                            role=msg['role'], 
+                            content=msg['content']
+                        ))
             
             # Add current query
-            langchain_messages.append(HumanMessage(content=query))
+            llm_messages.append(Message(
+                role="user", 
+                content=query
+            ))
             
-            # Call the LLM model
-            chat_result = await self.llm_model._agenerate(langchain_messages)
+            # Create model request
+            request = ModelRequest(
+                messages=llm_messages,
+                model=self.model,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens
+            )
+            
+            # Start time for performance monitoring
+            start_time = time.time()
+            
+            # Call the LLM
+            response = await self.llm_client.generate(request)
+            
+            # Log execution time
+            execution_time = time.time() - start_time
+            logger.info(f"LLM response generated in {execution_time:.2f}s")
             
             # Return the response message
-            return chat_result.generations[0].message
+            return response.message
             
         except Exception as e:
             logger.error(f"Error getting LLM response: {e}")
-            # Return a simple fallback response
-            return AIMessage(content=f"抱歉，我在处理您的请求时遇到了问题: {str(e)}")
+            # Return a simple fallback response as a dictionary to ensure compatibility
+            # Ensure the error message is properly encoded to handle Unicode characters
+            error_msg = str(e)
+            error_msg = error_msg.encode('utf-8', errors='ignore').decode('utf-8', errors='ignore')
+            return {
+                "role": "assistant",
+                "content": f"抱歉，我在处理您的请求时遇到了问题: {error_msg}"
+            }
     
     def _get_tool_specs(self) -> List[ToolSpec]:
         """
@@ -119,24 +170,32 @@ class LLMAssembler:
         specs = []
         
         for tool in self.tools:
-            # Get parameters schema
-            params = {}
-            for param in getattr(tool, 'parameters', []):
-                param_name = param.get('name', '')
-                if param_name:
-                    params[param_name] = {
-                        'type': param.get('type', 'string'),
-                        'description': param.get('description', ''),
-                        'required': param.get('required', True)
-                    }
-            
-            # Create tool spec
-            spec = ToolSpec(
-                name=tool.name,
-                description=tool.description,
-                parameters=params
-            )
-            specs.append(spec)
+            # Use tool's spec if available
+            if hasattr(tool, 'spec'):
+                # Convert from contract to assembler spec
+                spec = ToolSpec.from_contract(tool.spec)
+                specs.append(spec)
+            else:
+                # Fallback to creating spec from tool attributes
+                params = {}
+                for param in getattr(tool, 'get_parameters', lambda: [])():
+                    param_name = getattr(param, 'name', '')
+                    if param_name:
+                        params[param_name] = {
+                            'type': getattr(param, 'type', 'string'),
+                            'description': getattr(param, 'description', ''),
+                            'required': getattr(param, 'required', True)
+                        }
+                
+                # Create tool spec
+                spec = ToolSpec(
+                    name=tool.name,
+                    description=tool.description,
+                    parameters=params,
+                    tags=getattr(tool, 'tags', []),
+                    priority=getattr(tool, 'priority', 0)
+                )
+                specs.append(spec)
             
         return specs
     
@@ -231,17 +290,32 @@ class LLMAssembler:
             # Create the prompt
             prompt = await self._create_chain_prompt(query)
             
-            # Create message list for the LLM
+            # Prepare messages
             messages = [
-                SystemMessage(content=ASSEMBLER_SYSTEM_MESSAGE),
-                HumanMessage(content=prompt)
+                Message(role="system", content=ASSEMBLER_SYSTEM_MESSAGE),
+                Message(role="user", content=prompt)
             ]
             
-            # Call the LLM model
-            chat_result = await self.llm_model._agenerate(messages)
+            # Create model request
+            request = ModelRequest(
+                messages=messages,
+                model=self.model,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens
+            )
+            
+            # Start time for performance monitoring
+            start_time = time.time()
+            
+            # Call the LLM
+            response = await self.llm_client.generate(request)
+            
+            # Log execution time
+            execution_time = time.time() - start_time
+            logger.info(f"Assembler plan generated in {execution_time:.2f}s")
             
             # Extract the output text
-            output_text = chat_result.generations[0].message.content.strip()
+            output_text = response.message.content.strip()
             
             # Extract JSON from the output
             json_data = await self._extract_json(output_text)
@@ -252,7 +326,12 @@ class LLMAssembler:
             
             # Validate the JSON schema
             try:
-                return AssemblerOutput(**json_data)
+                output = AssemblerOutput(**json_data)
+                
+                # Validate that all tools exist
+                self._validate_tools_exist(output.tool_chain)
+                
+                return output
             except Exception as e:
                 logger.error(f"Error validating JSON schema: {e}")
                 return self._create_fallback_plan(query)
@@ -260,72 +339,82 @@ class LLMAssembler:
         except Exception as e:
             logger.error(f"Error in LLM Assembler: {e}")
             return self._create_fallback_plan(query)
+            
+    def _validate_tools_exist(self, tool_chain: ToolChain) -> None:
+        """
+        Validate that all tools in the chain exist in the registry.
+        
+        Args:
+            tool_chain: The tool chain to validate
+        
+        Raises:
+            ValueError: If a tool doesn't exist
+        """
+        for node in tool_chain.nodes:
+            tool_name = node.tool_call.tool_name
+            if not tool_registry.get_tool(tool_name):
+                logger.warning(f"Tool not found in registry: {tool_name}")
+                raise ValueError(f"Tool not found: {tool_name}")
     
     async def create_execution_plan(self, query: str) -> ExecutionPlan:
         """
-        Create a simplified execution plan from a user query.
+        Create an execution plan from a user query.
         
-        This method is a simplified version of assemble() that returns
-        a linear list of tool calls rather than a full graph.
+        This method uses the assemble() method to generate a tool chain
+        and converts it to an execution plan that can be used by the
+        flow orchestrator.
         
         Args:
             query: The user's query
             
         Returns:
-            An execution plan with a list of tool calls
+            An ExecutionPlan with the tool chain
         """
         try:
             # Generate the full tool chain
             assembler_output = await self.assemble(query)
             
-            # Extract tool calls in the correct order
-            tool_calls = []
+            # Convert to execution plan
+            execution_plan = ExecutionPlan.from_assembler_output(assembler_output)
             
-            if assembler_output.tool_chain.execution_order == "sequential":
-                # For sequential execution, just take nodes in order
-                for node in assembler_output.tool_chain.nodes:
-                    tool_calls.append(node.tool_call)
-                    
-            else:
-                # For graph execution, we need to sort by dependencies
-                # This is a simplified topological sort
-                remaining_nodes = list(assembler_output.tool_chain.nodes)
-                while remaining_nodes:
-                    # Find nodes with no remaining dependencies
-                    ready_nodes = []
-                    for node in remaining_nodes:
-                        if not node.dependencies:
-                            ready_nodes.append(node)
-                    
-                    if not ready_nodes:
-                        # If no nodes are ready, there might be a cycle
-                        # Just add the remaining nodes in order
-                        for node in remaining_nodes:
-                            tool_calls.append(node.tool_call)
-                        break
-                    
-                    # Add ready nodes to the execution plan
-                    for node in ready_nodes:
-                        tool_calls.append(node.tool_call)
-                        remaining_nodes.remove(node)
-                        
-                        # Remove this node from dependencies
-                        for other_node in remaining_nodes:
-                            if node.id in other_node.dependencies:
-                                other_node.dependencies.remove(node.id)
+            # Add metadata
+            execution_plan.metadata["generation_time"] = time.time()
+            execution_plan.metadata["tool_count"] = len(assembler_output.tool_chain.nodes)
+            execution_plan.metadata["model"] = self.model
             
-            return ExecutionPlan(
-                query=query,
-                tools=tool_calls
-            )
+            return execution_plan
             
         except Exception as e:
             logger.error(f"Error creating execution plan: {e}")
             # Create a simple fallback plan
+            empty_chain = ToolChain(
+                nodes=[],
+                execution_order="sequential"
+            )
+            
             return ExecutionPlan(
                 query=query,
-                tools=[]
+                plan=f"Error creating plan: {str(e)}",
+                tool_chain=empty_chain,
+                context={},
+                metadata={"error": str(e)}
             )
+            
+    async def create_contract_execution_plan(self, query: str) -> ContractExecutionPlan:
+        """
+        Create a contract-compatible execution plan from a user query.
+        
+        This is a convenience method that generates an execution plan
+        and converts it to the contract format used by other components.
+        
+        Args:
+            query: The user's query
+            
+        Returns:
+            A contract-compatible execution plan
+        """
+        execution_plan = await self.create_execution_plan(query)
+        return execution_plan.to_contract()
     
     def _create_fallback_plan(self, query: str) -> AssemblerOutput:
         """

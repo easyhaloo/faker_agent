@@ -6,6 +6,7 @@ from backend.core.protocol.http_protocol import HTTPProtocol
 from backend.core.protocol.protocol_factory import ProtocolFactory, ProtocolType, protocol_factory
 from backend.core.protocol.sse_protocol import SSEProtocol
 from backend.core.protocol.websocket_protocol import WebSocketProtocol
+from backend.core.protocol.filtered_registry import FilteredProtocolRegistry, filtered_protocol_registry
 
 __all__ = [
     'BaseProtocol',
@@ -14,5 +15,7 @@ __all__ = [
     'ProtocolType',
     'protocol_factory',
     'SSEProtocol',
-    'WebSocketProtocol'
+    'WebSocketProtocol',
+    'FilteredProtocolRegistry',
+    'filtered_protocol_registry'
 ]

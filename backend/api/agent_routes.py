@@ -328,13 +328,15 @@ async def list_strategies():
         logger.info("List strategies request received")
         
         # Get strategies from the filter manager
-        strategies = list(filter_manager.strategies.keys())
-        logger.info(f"Retrieved {len(strategies)} strategies: {strategies}")
+        tool_strategies = filter_manager.list_tool_strategies()
+        protocol_strategies = filter_manager.list_protocol_strategies()
+        logger.info(f"Retrieved {len(tool_strategies)} tool strategies and {len(protocol_strategies)} protocol strategies")
         
         return {
             "status": "success",
             "data": {
-                "strategies": strategies
+                "tool_strategies": tool_strategies,
+                "protocol_strategies": protocol_strategies
             }
         }
         

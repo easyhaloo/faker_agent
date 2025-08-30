@@ -1,9 +1,16 @@
 """
 Tool specifications for the LLM-based Assembler.
+
+This module defines the data models used by the LLM Assembler to create
+and validate execution plans. These models are used to represent tool
+specifications, tool calls, and the structure of the execution plan.
 """
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
+
+from backend.core.contracts.tools import ToolSpec as ContractToolSpec
+from backend.core.contracts.execution import ExecutionPlan as ContractExecutionPlan
 
 
 class ToolSpec(BaseModel):
@@ -15,6 +22,29 @@ class ToolSpec(BaseModel):
         default_factory=dict,
         description="Parameters required by the tool"
     )
+    tags: List[str] = Field(default_factory=list, description="Tags for tool categorization")
+    priority: int = Field(0, description="Tool priority for ranking")
+    
+    def to_contract(self) -> ContractToolSpec:
+        """Convert to contract ToolSpec."""
+        return ContractToolSpec(
+            name=self.name,
+            description=self.description,
+            parameters=self.parameters,
+            tags=self.tags,
+            priority=self.priority
+        )
+    
+    @classmethod
+    def from_contract(cls, spec: ContractToolSpec) -> "ToolSpec":
+        """Create ToolSpec from contract ToolSpec."""
+        return cls(
+            name=spec.name,
+            description=spec.description,
+            parameters=spec.parameters,
+            tags=spec.tags,
+            priority=spec.priority
+        )
 
 
 class ToolCall(BaseModel):
@@ -67,7 +97,28 @@ class ExecutionPlan(BaseModel):
     """Execution plan for a user query."""
     
     query: str = Field(..., description="Original user query")
-    tools: List[ToolCall] = Field(
-        default_factory=list,
-        description="Sequential list of tool calls"
-    )
+    plan: str = Field("", description="Natural language description of the plan")
+    tool_chain: ToolChain = Field(..., description="Tool chain to execute")
+    context: Dict[str, Any] = Field(default_factory=dict, description="Execution context")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    
+    def to_contract(self) -> ContractExecutionPlan:
+        """Convert to contract ExecutionPlan."""
+        return ContractExecutionPlan(
+            query=self.query,
+            plan=self.plan,
+            tool_chain=self.tool_chain,
+            context=self.context,
+            metadata=self.metadata
+        )
+    
+    @classmethod
+    def from_assembler_output(cls, output: "AssemblerOutput") -> "ExecutionPlan":
+        """Create ExecutionPlan from AssemblerOutput."""
+        return cls(
+            query=output.query,
+            plan=output.plan,
+            tool_chain=output.tool_chain,
+            context={},
+            metadata={}
+        )

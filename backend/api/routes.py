@@ -13,7 +13,6 @@ from backend.api.agent_routes import router as agent_router
 from backend.core.agent import Agent
 from backend.core.tools.registry import tool_registry
 from backend.core.utils.logging import get_logger
-from backend.modules.weather.routes import router as weather_router
 
 # Configure logger
 logger = get_logger(__name__)
@@ -23,7 +22,6 @@ router = APIRouter()
 
 # Include module routers
 router.include_router(agent_router, prefix="/agent/v1", tags=["agent"])
-router.include_router(weather_router, prefix="/weather", tags=["weather"])
 
 # Initialize agent
 agent = Agent()

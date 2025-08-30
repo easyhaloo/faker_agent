@@ -3,26 +3,24 @@ Tool filtering strategies for the Faker Agent.
 
 This module defines the base filter strategy class and several
 implementations that can be used to filter the tool collection
-before binding them to the LangGraph orchestrator.
+before binding them to the LangGraph orchestrator. These strategies
+provide flexible control over which tools are available to the agent
+in different contexts and scenarios.
 """
 import logging
 from abc import ABC, abstractmethod
-from typing import Dict, List, Set, Type
+from typing import Any, Dict, List, Optional, Set, Type, Protocol
 
-from typing import Any, Dict, List, Set, Type, Protocol
+# Configure logger
+logger = logging.getLogger(__name__)
+
 
 class BaseTool(Protocol):
     """Protocol for tool classes to avoid circular imports."""
     name: str
     description: str
-    tags: Set[str]
+    tags: List[str]
     priority: int
-    
-    def __call__(self, *args, **kwargs) -> Any:
-        ...
-
-# Configure logger
-logger = logging.getLogger(__name__)
 
 
 class ToolFilterStrategy(ABC):
@@ -76,7 +74,7 @@ class ThresholdToolFilter(ToolFilterStrategy):
 class TagToolFilter(ToolFilterStrategy):
     """Filter strategy based on tool tags."""
     
-    def __init__(self, included_tags: Set[str] = None, excluded_tags: Set[str] = None):
+    def __init__(self, included_tags: Optional[Set[str]] = None, excluded_tags: Optional[Set[str]] = None):
         """
         Initialize the tag filter.
         
@@ -101,8 +99,8 @@ class TagToolFilter(ToolFilterStrategy):
         filtered_tools = []
         
         for tool in tools:
-            # Get tool tags (if the tool class has a tags attribute)
-            tool_tags = getattr(tool, 'tags', set())
+            # Get tool tags
+            tool_tags = set(tool.tags)
             
             # Check if we should include this tool
             if self.included_tags and not any(tag in self.included_tags for tag in tool_tags):
@@ -142,10 +140,10 @@ class PriorityToolFilter(ToolFilterStrategy):
         Returns:
             The filtered list of tools with highest priority
         """
-        # Sort tools by priority (if the tool class has a priority attribute)
+        # Sort tools by priority
         sorted_tools = sorted(
             tools,
-            key=lambda tool: getattr(tool, 'priority', 0),
+            key=lambda tool: tool.priority,
             reverse=True  # Higher priority first
         )
         
