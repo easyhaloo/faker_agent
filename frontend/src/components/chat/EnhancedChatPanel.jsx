@@ -96,6 +96,10 @@ const EnhancedChatPanel = () => {
                 className="p-3 cursor-pointer hover:bg-gray-50 transition-colors" 
                 onClick={() => {
                   setInputValue("今天北京的天气怎么样？");
+                  // 自动发送消息
+                  setTimeout(() => {
+                    sendMessageToAgent("今天北京的天气怎么样？");
+                  }, 100);
                 }}
               >
                 <h4 className="font-medium text-gray-800">天气查询</h4>
@@ -105,6 +109,10 @@ const EnhancedChatPanel = () => {
                 className="p-3 cursor-pointer hover:bg-gray-50 transition-colors"
                 onClick={() => {
                   setInputValue("帮我制定一周学习计划");
+                  // 自动发送消息
+                  setTimeout(() => {
+                    sendMessageToAgent("帮我制定一周学习计划");
+                  }, 100);
                 }}
               >
                 <h4 className="font-medium text-gray-800">任务规划</h4>

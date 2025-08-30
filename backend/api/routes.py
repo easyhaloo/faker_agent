@@ -2,7 +2,6 @@
 Enhanced API routes for the Faker Agent with real-time task status support.
 """
 import asyncio
-import logging
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
@@ -13,10 +12,11 @@ from pydantic import BaseModel
 from backend.api.agent_routes import router as agent_router
 from backend.core.agent import Agent
 from backend.core.tools.registry import tool_registry
+from backend.core.utils.logging import get_logger
 from backend.modules.weather.routes import router as weather_router
 
 # Configure logger
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Create router
 router = APIRouter()
@@ -228,7 +228,7 @@ async def get_system_status():
                 "active_tasks": len(tasks)  # Current number of tasks
             }
         )
-        
+
     except Exception as e:
         logger.error(f"Error getting system status: {e}")
         return TaskResponse(

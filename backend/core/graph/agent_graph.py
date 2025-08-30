@@ -1,31 +1,47 @@
 """
 Agent graph implementation using LangGraph.
 """
-import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Union
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
-from langgraph.graph import END, MessageGraph
+from langchain_core.language_models import BaseChatModel
+from langgraph.graph import END, StateGraph
 from langgraph.prebuilt import ToolNode
 
+from backend.core.llm import get_chat_model
 from backend.core.tools.registry import tool_registry
-from backend.core.assembler.llm_assembler import assembler
+from backend.core.utils.logging import get_logger
+from backend.core.utils.message_formatter import message_formatter
 
 # Configure logger
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
+
+
+# Define state schema for the graph
+class AgentState(dict):
+    """State schema for the agent graph."""
+    messages: List[Any]  # Messages in the conversation
+
+
+# Define context schema for runtime data
+class AgentContext(dict):
+    """Runtime context for the agent graph."""
+    conversation_id: Optional[str] = None  # Optional conversation ID for context
 
 
 class AgentGraph:
     """Agent graph for orchestrating tool execution using LangGraph."""
     
-    def __init__(self):
+    def __init__(self, llm_model: Optional[BaseChatModel] = None):
+        self.llm_model = llm_model or get_chat_model()
         self.tools = tool_registry.get_all_langchain_tools()
         self.tool_node = ToolNode(self.tools)
         self.graph = self._build_graph()
     
-    def _build_graph(self) -> MessageGraph:
+    def _build_graph(self) -> StateGraph:
         """Build the agent graph."""
-        graph = MessageGraph()
+        # Create a state graph with proper state schema
+        graph = StateGraph(state_schema=AgentState, context_schema=AgentContext)
         
         # Add nodes
         graph.add_node("llm", self._call_llm)
@@ -49,108 +65,167 @@ class AgentGraph:
         
         return graph.compile()
     
-    async def _call_llm(self, state: List[Any]) -> Dict[str, Any]:
-        """Call the LLM with the current state."""
-        logger.info("Calling LLM with state: %s", state)
+    async def _call_llm(self, state: AgentState, context: AgentContext) -> Dict[str, List[Any]]:
+        """Call the LLM with the current state and context.
         
-        # Use the LLM assembler to get a response
-        # Handle different state formats
-        if isinstance(state, dict):
-            messages = state.get("messages", [])
-        elif isinstance(state, list):
-            messages = state
-        else:
-            messages = []
-        
-        # Get the last message content
-        if messages:
-            last_message = messages[-1]
-            query = last_message.content if hasattr(last_message, 'content') else str(last_message)
-        else:
-            query = "Hello"
+        Args:
+            state: The current agent state containing messages
+            context: Runtime context with conversation ID
+            
+        Returns:
+            Updated state with LLM response added to messages
+        """
+        logger.info("Calling LLM with state")
         
         try:
-            # Use the assembler to get a response
-            response = await assembler.get_response(query, messages)
+            # Extract messages from state
+            messages = state.get("messages", [])
             
-            # If the response contains tool calls, convert them to the proper format
-            if hasattr(response, 'tool_calls') and response.tool_calls:
-                ai_message_dict = {
-                    "content": response.content,
-                    "role": "assistant",
-                    "tool_calls": [
-                        {
-                            "name": tool_call.name if hasattr(tool_call, 'name') else tool_call["name"],
-                            "args": tool_call.arguments if hasattr(tool_call, 'arguments') else tool_call["args"],
-                            "id": f"tool_call_{i}"
-                        }
-                        for i, tool_call in enumerate(response.tool_calls)
-                    ]
-                }
-            else:
-                # Simple text response
-                ai_message_dict = {
-                    "content": response.content if hasattr(response, 'content') else str(response),
-                    "role": "assistant"
-                }
+            # Convert messages to LangChain format if needed
+            langchain_messages = []
+            for msg in messages:
+                if isinstance(msg, (HumanMessage, AIMessage, ToolMessage)):
+                    # Already in LangChain format
+                    langchain_messages.append(msg)
+                else:
+                    # Convert to LangChain format
+                    langchain_messages.append(message_formatter.to_langchain_format(msg))
             
-            return {"messages": [ai_message_dict]}
+            # Call the LLM model
+            chat_result = await self.llm_model._agenerate(langchain_messages)
+            
+            # Get the generated message
+            ai_message = chat_result.generations[0].message
+            
+            # Return a dict with the updated messages list
+            return {"messages": messages + [ai_message]}
             
         except Exception as e:
             logger.error(f"Error calling LLM: {e}")
             # Fallback to simple response
-            response_text = f"我收到了您的查询。由于技术问题，我目前无法完全处理它。错误: {str(e)}"
-            return {"messages": [{"content": response_text, "role": "assistant"}]}
+            error_msg = f"I received your query, but I'm currently experiencing technical difficulties: {str(e)}"
+            error_message = AIMessage(content=error_msg)
+            return {"messages": messages + [error_message]}
     
-    async def _execute_tools(self, state: List[Any]) -> Dict[str, Any]:
-        """Execute tools based on LLM output."""
-        messages = state["messages"]
+    async def _execute_tools(self, state: AgentState, context: AgentContext) -> Dict[str, List[Any]]:
+        """Execute tools based on LLM output.
+        
+        Args:
+            state: The current agent state containing messages
+            context: Runtime context with conversation ID
+            
+        Returns:
+            Updated state with tool results added to messages
+        """
+        # Extract messages from state
+        messages = state.get("messages", [])
+        
+        if not messages:
+            return {"messages": messages}
+            
+        # Get the last message (LLM response)
         last_message = messages[-1]
         
-        if not isinstance(last_message, AIMessage) or not last_message.tool_calls:
-            return {"messages": []}
+        # Convert to LangChain format if needed
+        if not isinstance(last_message, (HumanMessage, AIMessage, ToolMessage)):
+            last_message = message_formatter.to_langchain_format(last_message)
         
+        # Check if there are any tool calls to execute
+        if not isinstance(last_message, AIMessage) or not hasattr(last_message, 'tool_calls') or not last_message.tool_calls:
+            return {"messages": messages}  # Return original messages if no tool calls
+        
+        # Execute tool calls and collect results
         results = []
         for tool_call in last_message.tool_calls:
             logger.info("Executing tool: %s with args: %s", 
                        tool_call["name"], tool_call["args"])
             
-            # Execute the tool
-            tool_message = await self.tool_node.ainvoke(ToolMessage(
-                content="",  # Content is not used for tool invocation
-                tool_call_id=tool_call["id"],
-                name=tool_call["name"],
-                args=tool_call["args"]
-            ))
-            result = tool_message.content if hasattr(tool_message, 'content') else str(tool_message)
+            # Extract tool information
+            tool_name = tool_call["name"]
+            tool_args = tool_call["args"]
             
-            # Create tool message
-            tool_message = ToolMessage(
+            # Find the matching tool
+            matching_tool = None
+            for tool in self.tools:
+                if tool.name == tool_name:
+                    matching_tool = tool
+                    break
+            
+            # Execute the tool
+            if matching_tool:
+                try:
+                    result = await matching_tool.ainvoke(tool_args)
+                except Exception as e:
+                    result = f"Error executing tool: {str(e)}"
+            else:
+                result = f"Tool not found: {tool_name}"
+            
+            # Create ToolMessage object for the graph
+            tool_message_obj = ToolMessage(
                 content=str(result),
                 tool_call_id=tool_call["id"],
                 name=tool_call["name"]
             )
-            results.append(tool_message)
+            results.append(tool_message_obj)
         
-        return {"messages": results}
+        # Return updated state with tool results added to messages
+        return {"messages": messages + results}
     
-    def _should_continue(self, state: List[Any]) -> str:
-        """Determine if we should continue or end."""
-        messages = state["messages"]
+    def _should_continue(self, state: AgentState, context: AgentContext) -> str:
+        """Determine if we should continue or end based on the state.
+        
+        Args:
+            state: The current agent state containing messages
+            context: Runtime context with conversation ID
+            
+        Returns:
+            'continue' if there are tool calls to execute, 'end' otherwise
+        """
+        # Extract messages from state
+        messages = state.get("messages", [])
+        
+        if not messages:
+            return "end"
+            
+        # Get the last message
         last_message = messages[-1]
         
-        # If the last message is an AIMessage with tool calls, continue
-        if isinstance(last_message, AIMessage) and last_message.tool_calls:
+        # Convert to LangChain format if needed
+        if not isinstance(last_message, (HumanMessage, AIMessage, ToolMessage)):
+            last_message = message_formatter.to_langchain_format(last_message)
+        
+        # Check if there are tool calls to execute
+        if isinstance(last_message, AIMessage) and hasattr(last_message, 'tool_calls') and last_message.tool_calls:
             return "continue"
         else:
             return "end"
     
-    async def invoke(self, input_message: str) -> Dict[str, Any]:
-        """Invoke the agent graph with an input message."""
-        # Convert input to HumanMessage
-        human_message = HumanMessage(content=input_message)
+    async def invoke(self, input_message: str, conversation_id: Optional[str] = None) -> Dict[str, Any]:
+        """Invoke the agent graph with an input message.
         
-        # Invoke the graph
-        result = await self.graph.ainvoke({"messages": [human_message]})
+        Args:
+            input_message: The user's input message
+            conversation_id: Optional conversation ID for context
+            
+        Returns:
+            The result of the agent's processing
+        """
+        # Create human message from input
+        if isinstance(input_message, str):
+            human_message = HumanMessage(content=input_message)
+        else:
+            # Already a dict format, convert to LangChain format
+            human_message = message_formatter.to_langchain_format(input_message)
+        
+        # Create initial state
+        initial_state = {"messages": [human_message]}
+        
+        # Create context
+        context = {}
+        if conversation_id:
+            context["conversation_id"] = conversation_id
+        
+        # Invoke the graph with state and context
+        result = await self.graph.ainvoke(initial_state, context=context)
         
         return result

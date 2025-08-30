@@ -60,13 +60,12 @@ class HTTPProtocol(BaseProtocol):
             elif event.type == EventType.ERROR:
                 error = event.error
                 break
-        
         # Build the response
         if error:
             return {
                 "status": "error",
                 "error": {
-                    "code": "EXECUTION_ERROR",
+                    "code": "123",
                     "message": error
                 }
             }

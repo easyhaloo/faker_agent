@@ -12,13 +12,21 @@ import backend.modules.weather
 
 from backend.api.routes import router as api_router
 from backend.config.settings import settings
+from backend.core.utils.logging import configure_root_logger, get_logger
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+# Configure root logger
+configure_root_logger(
+    level=settings.LOG_LEVEL,
+    use_colors=True,
+    log_to_file=True,
+    file_name="application.log",
+    rotation_type="size",  # Use size-based rotation
+    max_bytes=10 * 1024 * 1024,  # 10MB
+    backup_count=5
 )
-logger = logging.getLogger(__name__)
+
+# Get module-specific logger
+logger = get_logger(__name__)
 
 # Create FastAPI app
 app = FastAPI(

@@ -2,12 +2,11 @@
 LLM-based Assembler for generating tool chains from user queries.
 """
 import json
-import logging
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
-import litellm
-from litellm import completion
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.language_models import BaseChatModel
 
 from backend.config.settings import settings
 from backend.core.assembler.tool_spec import (
@@ -19,6 +18,7 @@ from backend.core.assembler.tool_spec import (
     ToolSpec
 )
 from backend.core.filters.filter_manager import filter_manager
+from backend.core.llm import get_chat_model, get_assembler_model
 from backend.core.prompts.assembler_prompts import (
     ASSEMBLER_SYSTEM_MESSAGE,
     TOOL_CHAIN_PROMPT_TEMPLATE,
@@ -27,9 +27,11 @@ from backend.core.prompts.assembler_prompts import (
     FALLBACK_PROMPT_TEMPLATE
 )
 from backend.core.tools.base import BaseTool
+from backend.core.utils.logging import get_logger
+from backend.core.utils.message_formatter import message_formatter
 
 # Configure logger
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class LLMAssembler:
@@ -42,6 +44,7 @@ class LLMAssembler:
     
     def __init__(
         self,
+        llm_model: Optional[BaseChatModel] = None,
         filter_strategy: Optional[str] = None,
         tool_tags: Optional[List[str]] = None
     ):
@@ -49,6 +52,7 @@ class LLMAssembler:
         Initialize the LLM Assembler.
         
         Args:
+            llm_model: LangChain chat model to use (or None to use default)
             filter_strategy: Optional filter strategy name
             tool_tags: Optional tool tags to pre-filter by
         """
@@ -58,20 +62,10 @@ class LLMAssembler:
             tags=tool_tags
         )
         
-        # LLM settings
-        self.model = settings.LITELLM_MODEL
-        self.temperature = 0.0  # Use low temperature for deterministic planning
-        self.max_tokens = settings.LITELLM_MAX_TOKENS
-        
-        # Set API key from settings
-        if settings.LITELLM_API_KEY:
-            litellm.api_key = settings.LITELLM_API_KEY
+        # Set up LLM model
+        self.llm_model = llm_model or get_assembler_model()
             
-        # Set custom base URL if provided
-        if settings.LITELLM_BASE_URL:
-            litellm.api_base = settings.LITELLM_BASE_URL
-            
-        logger.info(f"Initialized LLMAssembler with {len(self.tools)} tools")
+        logger.info(f"Initialized LLMAssembler with {len(self.tools)} tools using {self.llm_model.__class__.__name__}")
     
     async def get_response(self, query: str, messages: List[Any] = None) -> Any:
         """
@@ -85,43 +79,35 @@ class LLMAssembler:
             LLM response object
         """
         try:
-            # Prepare messages for the LLM
-            llm_messages = []
+            # Prepare message list in LangChain format
+            langchain_messages = []
             
             # Add system message
-            llm_messages.append({"role": "system", "content": ASSEMBLER_SYSTEM_MESSAGE})
+            langchain_messages.append(SystemMessage(content=ASSEMBLER_SYSTEM_MESSAGE))
             
-            # Add previous messages if provided
+            # Add history messages if provided
             if messages:
                 for msg in messages:
-                    if hasattr(msg, 'role') and hasattr(msg, 'content'):
-                        llm_messages.append({"role": msg.role, "content": msg.content})
-                    elif isinstance(msg, dict) and 'role' in msg and 'content' in msg:
-                        llm_messages.append(msg)
+                    if isinstance(msg, (SystemMessage, HumanMessage, AIMessage, ToolMessage)):
+                        # Already in LangChain format
+                        langchain_messages.append(msg)
+                    else:
+                        # Convert to LangChain format
+                        langchain_messages.append(message_formatter.to_langchain_format(msg))
             
             # Add current query
-            llm_messages.append({"role": "user", "content": query})
+            langchain_messages.append(HumanMessage(content=query))
             
-            # Call the LLM
-            response = await completion(
-                model=self.model,
-                messages=llm_messages,
-                temperature=self.temperature,
-                max_tokens=self.max_tokens
-            )
+            # Call the LLM model
+            chat_result = await self.llm_model._agenerate(langchain_messages)
             
-            # Return the response
-            return response.choices[0].message
+            # Return the response message
+            return chat_result.generations[0].message
             
         except Exception as e:
             logger.error(f"Error getting LLM response: {e}")
             # Return a simple fallback response
-            class FallbackMessage:
-                def __init__(self):
-                    self.content = f"抱歉，我在处理您的请求时遇到了问题: {str(e)}"
-                    self.tool_calls = None
-                    
-            return FallbackMessage()
+            return AIMessage(content=f"抱歉，我在处理您的请求时遇到了问题: {str(e)}")
     
     def _get_tool_specs(self) -> List[ToolSpec]:
         """
@@ -245,19 +231,17 @@ class LLMAssembler:
             # Create the prompt
             prompt = await self._create_chain_prompt(query)
             
-            # Call the LLM
-            response = await completion(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": ASSEMBLER_SYSTEM_MESSAGE},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=self.temperature,
-                max_tokens=self.max_tokens
-            )
+            # Create message list for the LLM
+            messages = [
+                SystemMessage(content=ASSEMBLER_SYSTEM_MESSAGE),
+                HumanMessage(content=prompt)
+            ]
+            
+            # Call the LLM model
+            chat_result = await self.llm_model._agenerate(messages)
             
             # Extract the output text
-            output_text = response.choices[0].message.content.strip()
+            output_text = chat_result.generations[0].message.content.strip()
             
             # Extract JSON from the output
             json_data = await self._extract_json(output_text)

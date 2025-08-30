@@ -11,6 +11,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # Base directory
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Logs directory
+LOGS_DIR = BASE_DIR.parent / "logs"
+
 
 class Settings(BaseSettings):
     """Application settings."""
@@ -19,6 +22,11 @@ class Settings(BaseSettings):
     APP_NAME: str = "Faker Agent"
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = True
+    
+    # Logging settings
+    LOG_LEVEL: str = "INFO"
+    LOG_FILE: str = str(LOGS_DIR / "application.log")
+    LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     
     # API settings
     API_PREFIX: str = "/api"

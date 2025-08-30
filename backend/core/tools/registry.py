@@ -1,13 +1,13 @@
 """
 Tool registry for managing LangChain-compatible tools.
 """
-import logging
 from typing import Any, Dict, List, Optional, Type
 
 from backend.core.tools.base import BaseTool, ToolMetadata
+from backend.core.utils.logging import get_logger
 
 # Configure logger
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class ToolRegistry:
