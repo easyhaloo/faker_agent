@@ -28,10 +28,11 @@ class Settings(BaseSettings):
     
     # LiteLLM settings
     LITELLM_API_KEY: str = Field("", env="LITELLM_API_KEY")
-    LITELLM_MODEL: str = "gpt-3.5-turbo"  # Default model
+    LITELLM_MODEL: str = "openai/gpt-3.5-turbo"  # Default model with provider prefix
     LITELLM_BASE_URL: str = Field("", env="LITELLM_BASE_URL")  # Custom endpoint URL
     LITELLM_TEMPERATURE: float = 0.7
     LITELLM_MAX_TOKENS: int = 800
+    LITELLM_TIMEOUT: float = 60.0  # Request timeout in seconds
     
     # Weather API (placeholder for demo)
     WEATHER_API_KEY: str = Field("", env="WEATHER_API_KEY")
@@ -39,7 +40,7 @@ class Settings(BaseSettings):
     
     # Model configuration
     model_config = SettingsConfigDict(
-        env_file=".env", 
+        env_file=str(BASE_DIR / ".env"), 
         env_file_encoding="utf-8", 
         case_sensitive=True
     )

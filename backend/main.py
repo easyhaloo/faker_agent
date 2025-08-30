@@ -8,7 +8,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # Import modules to ensure they are loaded
-import backend.modules.weather
 
 from backend.api.routes import router as api_router
 from backend.config.settings import settings
@@ -52,6 +51,27 @@ async def root() -> Dict[str, str]:
 async def startup_event():
     """Runs on application startup."""
     logger.info(f"Starting Faker Agent API v{settings.APP_VERSION}")
+    
+    # Initialize registries and resolve circular dependencies
+    from backend.core.filters.filter_manager import filter_manager
+    from backend.core.protocol.filtered_registry import filtered_protocol_registry
+    from backend.core.tools.filtered_registry import filtered_registry
+    
+    # Set up the registries with their dependencies
+    filtered_protocol_registry.set_filter_manager(filter_manager)
+    if filter_manager.registry is None:
+        filter_manager.registry = filtered_registry
+    
+    # Register tools
+    from backend.core.tools.registry import tool_registry
+    from backend.core.tools import CalculatorTool, WebSearchTool, WeatherTool
+    
+    # Register available tools
+    tool_registry.register_tool(CalculatorTool())
+    tool_registry.register_tool(WebSearchTool())
+    tool_registry.register_tool(WeatherTool())
+        
+    logger.info("Initialized filter manager, registries and tools")
 
 
 # Shutdown event

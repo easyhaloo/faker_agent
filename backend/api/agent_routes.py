@@ -281,12 +281,14 @@ async def list_strategies():
     """
     try:
         # Get strategies from the filter manager
-        strategies = list(filter_manager.strategies.keys())
+        tool_strategies = filter_manager.list_tool_strategies()
+        protocol_strategies = filter_manager.list_protocol_strategies()
         
         return {
             "status": "success",
             "data": {
-                "strategies": strategies
+                "tool_strategies": tool_strategies,
+                "protocol_strategies": protocol_strategies
             }
         }
         

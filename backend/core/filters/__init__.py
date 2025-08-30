@@ -1,5 +1,9 @@
 """
-Tool filtering package for the Faker Agent.
+Filter strategies and management for the Faker Agent.
+
+This package provides filtering capabilities for tools and protocols
+before they're used in the system, allowing for fine-grained control
+over which components are available in different contexts.
 """
 from backend.core.filters.tool_filter_strategy import (
     ToolFilterStrategy,
@@ -9,15 +13,36 @@ from backend.core.filters.tool_filter_strategy import (
     CompositeToolFilter,
     create_filter_strategy
 )
-from backend.core.filters.filter_manager import ToolFilterManager, filter_manager
+from backend.core.filters.protocol_filter_strategy import (
+    ProtocolFilterStrategy,
+    AllowAllProtocolFilter,
+    DenyAllProtocolFilter,
+    WhitelistProtocolFilter,
+    BlacklistProtocolFilter,
+    CompositeProtocolFilter,
+    create_protocol_filter_strategy
+)
+from backend.core.filters.filter_manager import FilterManager, filter_manager
 
 __all__ = [
+    # Tool filter strategies
     'ToolFilterStrategy',
     'ThresholdToolFilter',
     'TagToolFilter',
     'PriorityToolFilter',
     'CompositeToolFilter',
     'create_filter_strategy',
-    'ToolFilterManager',
+    
+    # Protocol filter strategies
+    'ProtocolFilterStrategy',
+    'AllowAllProtocolFilter',
+    'DenyAllProtocolFilter',
+    'WhitelistProtocolFilter',
+    'BlacklistProtocolFilter',
+    'CompositeProtocolFilter',
+    'create_protocol_filter_strategy',
+    
+    # Filter manager
+    'FilterManager',
     'filter_manager'
 ]

@@ -5,7 +5,8 @@ import logging
 from typing import Any, Dict, List
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
-from langgraph.graph import END, MessageGraph
+from langgraph.graph import END, StateGraph
+from typing import TypedDict
 from langgraph.prebuilt import ToolNode
 
 from backend.core.tools.registry import tool_registry
@@ -23,9 +24,13 @@ class AgentGraph:
         self.tool_node = ToolNode(self.tools)
         self.graph = self._build_graph()
     
-    def _build_graph(self) -> MessageGraph:
+    # Define state structure
+    class State(TypedDict):
+        messages: list
+    
+    def _build_graph(self) -> StateGraph:
         """Build the agent graph."""
-        graph = MessageGraph()
+        graph = StateGraph(self.State)
         
         # Add nodes
         graph.add_node("llm", self._call_llm)

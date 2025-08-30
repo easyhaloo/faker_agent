@@ -22,6 +22,7 @@ dependencies = [
     "langchain-core>=0.1.0",
     "langgraph>=0.0.1",
     "redis>=4.5.0",
+    "langchain_litellm>=0.0.1",
 ]
 
 [tool.hatch.build.targets.wheel]
