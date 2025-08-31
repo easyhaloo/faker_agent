@@ -8,7 +8,7 @@ import asyncio
 import logging
 import time
 from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Union
-
+import os
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_litellm import ChatLiteLLM
 from litellm import ModelResponse
@@ -21,6 +21,7 @@ from backend.core.errors import ModelError, ConfigurationError
 
 # Configure logger
 logger = logging.getLogger(__name__)
+os.environ["LITELLM_LOG"] = "DEBUG"  # Enable debug logging
 litellm._turn_on_debug()
 
 class LiteLLMClient:
@@ -152,35 +153,55 @@ class LiteLLMClient:
         request: ModelRequest
     ) -> FakerModelResponse:
         """
-        Convert LiteLLM response to Faker Agent format.
+        Convert LiteLLM/LangChain response to Faker Agent format.
+        
+        Handles both direct LiteLLM responses and LangChain message responses,
+        adapting them to the Faker Agent response format.
         
         Args:
-            response: LiteLLM response
+            response: LiteLLM or LangChain response
             request: Original model request
             
         Returns:
             Response in Faker Agent format
         """
-        # Extract the message content
+        # Initialize default values
         content = ""
-        if hasattr(response, "message") and hasattr(response.message, "content"):
-            content = response.message.content
+        tool_calls = []
+        usage = {}
+        
+        # Handle LangChain ChatMessage response (typical from client.ainvoke)
+        if hasattr(response, "content"):
+            # Direct LangChain message format
+            content = response.content
+            
+            # Extract tool calls if using the additional_kwargs format
+            if hasattr(response, "additional_kwargs") and "tool_calls" in response.additional_kwargs:
+                tool_calls = response.additional_kwargs["tool_calls"]
+                
+        # Handle LiteLLM ModelResponse format
+        elif hasattr(response, "message"):
+            # Extract content from message
+            if hasattr(response.message, "content"):
+                content = response.message.content
+                
+            # Extract tool calls from message
+            if hasattr(response.message, "tool_calls"):
+                tool_calls = response.message.tool_calls
+        
+        # Extract usage information (common in both formats)
+        if hasattr(response, "usage"):
+            usage = response.usage
+            
+        # Handle metadata in LangChain format
+        if hasattr(response, "response_metadata") and request.metadata is not None:
+            request.metadata.update(response.response_metadata)
         
         # Create the response message
         message = Message(
             role="assistant",
             content=content
         )
-        
-        # Extract tool calls if present
-        tool_calls = []
-        if hasattr(response, "message") and hasattr(response.message, "tool_calls"):
-            tool_calls = response.message.tool_calls
-        
-        # Extract usage information
-        usage = {}
-        if hasattr(response, "usage"):
-            usage = response.usage
         
         # Create the model response
         return FakerModelResponse(
@@ -195,14 +216,17 @@ class LiteLLMClient:
         """
         Generate a response from the LLM.
         
+        This method handles both LiteLLM native responses and LangChain message responses,
+        providing a unified interface regardless of the underlying implementation.
+        
         Args:
-            request: The model request
+            request: The model request containing messages and configuration
             
         Returns:
-            The model response
+            The model response in Faker Agent format
             
         Raises:
-            ModelError: If generation fails
+            ModelError: If generation fails after all retry attempts
         """
         # Attempt with retries
         attempt = 0
@@ -210,7 +234,6 @@ class LiteLLMClient:
         
         while attempt < self.retry_attempts:
             try:
-                logger.error(f"call llm from {request.model}")
                 # Convert messages to LangChain format
                 lc_messages = self._convert_to_langchain_messages(request.messages)
                 
@@ -223,7 +246,7 @@ class LiteLLMClient:
                     client = client.bind_tools(request.tools)
                 
                 # Call the LLM
-                logger.debug(f"call llm from {request.model}")
+                logger.info(f"call llm from {request.model}")
 
                 start_time = time.time()
                 response = await client.ainvoke(
@@ -232,6 +255,9 @@ class LiteLLMClient:
                     max_tokens=request.max_tokens
                 )
                 execution_time = time.time() - start_time
+                
+                # Log response type for debugging
+                logger.debug(f"Response type from LLM: {type(response).__name__}")
                 
                 # Log success
                 logger.info(f"Generated response from {request.model} in {execution_time:.2f}s")
@@ -295,15 +321,12 @@ class LiteLLMClient:
             "streaming": self.streaming,
         }
         
-        # Add base_url to model_kwargs if provided
+        # Add base_url as top-level api_base if provided (expected by ChatLiteLLM)
         if self.base_url:
-            if "model_kwargs" not in client_kwargs:
-                client_kwargs["model_kwargs"] = {}
-            client_kwargs["model_kwargs"]["base_url"] = self.base_url
-            
+            client_kwargs["api_base"] = self.base_url
         # Create client with proper configuration
         temp_client = ChatLiteLLM(**client_kwargs)
-        
+
         # Set custom base URL if provided
         # Note: ChatLiteLLM in newer versions doesn't directly support base_url as a property
         # It's now handled through model configuration or other mechanisms

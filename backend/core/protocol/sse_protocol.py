@@ -19,6 +19,7 @@ class SSEProtocol(BaseProtocol):
     SSE protocol handler.
     
     This handler formats events as SSE messages for streaming responses.
+    Supports both GET and POST requests.
     """
     
     async def handle_events(self, events: AsyncGenerator[Event, None], **kwargs) -> StreamingResponse:

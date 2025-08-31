@@ -3,13 +3,13 @@ Enhanced API routes for the Faker Agent with protocol support.
 """
 import asyncio
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 
 from backend.core.agent import Agent
 from backend.core.assembler.llm_assembler import assembler
@@ -50,7 +50,8 @@ class AgentResponse(BaseModel):
 
 async def _create_flow_orchestrator(
     filter_strategy: Optional[str] = None,
-    tool_tags: Optional[List[str]] = None
+    tool_tags: Optional[List[str]] = None,
+    streaming: Optional[bool] = None
 ) -> FlowOrchestrator:
     """
     Create a flow orchestrator with the specified filters.
@@ -58,38 +59,23 @@ async def _create_flow_orchestrator(
     Args:
         filter_strategy: Optional filter strategy name
         tool_tags: Optional tool tags to filter by
+        streaming: Optional flag to enable streaming in LLM adapter selection
         
     Returns:
         A flow orchestrator instance
     """
-    # Use the regular Agent's LLM node for simplicity
-    agent = Agent()
-    
-    # Create an adapter for the LLM node to handle different state formats
-    async def llm_node_adapter(state):
-        # 简化处理，直接调用agent的graph._call_llm方法
-        # 该方法已经在agent_graph.py中完成了必要的消息格式转换
-        try:
-            result = await agent.graph._call_llm(state)
-            return result
-        except Exception as e:
-            logger.error(f"Error in llm_node_adapter: {e}")
-            return {
-                "messages": [AIMessage(content=f"处理您的请求时发生错误: {e}")]
-            }
-    
-    # Create a flow orchestrator
+    # Create a flow orchestrator with its default LLM node (no private method usage)
     orchestrator = FlowOrchestrator(
-        llm_node=llm_node_adapter,
         filter_strategy=filter_strategy,
-        tool_tags=tool_tags
+        tool_tags=tool_tags,
+        streaming=bool(streaming) if streaming is not None else False
     )
     
     return orchestrator
 
 
 @router.post("/respond", response_model=AgentResponse)
-async def agent_respond(request: AgentRequest):
+async def agent_respond(agent_request: AgentRequest):
     """
     Send a query to the agent with protocol support.
     
@@ -97,23 +83,24 @@ async def agent_respond(request: AgentRequest):
     based on the 'protocol' parameter.
     """
     try:
-        # Test log message to verify logging is working
-        print("TEST PRINT: Agent respond function called")
-        logger.critical("TEST CRITICAL LOG: Agent respond function called")
-        logger.error("TEST ERROR LOG: Agent respond function called")
-        logger.warning("TEST WARNING LOG: Agent respond function called")
-        logger.info("TEST INFO LOG: Agent respond function called")
-        logger.debug("TEST DEBUG LOG: Agent respond function called")
+        # Log request parameters
+        logger.info("Agent respond function called with POST request")
+        logger.info(f"Input: {agent_request.input[:100]}..., Protocol: {agent_request.protocol}, Mode: {agent_request.mode}")
+        logger.info(f"Conversation ID: {agent_request.conversation_id}, Filter Strategy: {agent_request.filter_strategy}, Tool Tags: {agent_request.tool_tags}")
+        
+        # Add additional parameters log if they exist
+        if agent_request.params:
+            logger.info(f"Additional parameters: {agent_request.params}")
         
         # Log request parameters
-        logger.info(f"Agent respond request received - Protocol: {request.protocol}, Mode: {request.mode}, Input: {request.input[:100]}...")
-        logger.info(f"Request details - Conversation ID: {request.conversation_id}, Filter Strategy: {request.filter_strategy}, Tool Tags: {request.tool_tags}")
-        if request.params:
-            logger.info(f"Additional parameters: {request.params}")
+        logger.info(f"Agent respond request received - Protocol: {agent_request.protocol}, Mode: {agent_request.mode}, Input: {agent_request.input[:100]}...")
+        logger.info(f"Request details - Conversation ID: {agent_request.conversation_id}, Filter Strategy: {agent_request.filter_strategy}, Tool Tags: {agent_request.tool_tags}")
+        if agent_request.params:
+            logger.info(f"Additional parameters: {agent_request.params}")
         
-        # Check if this is a WebSocket request
-        if request.protocol.lower() == ProtocolType.WEBSOCKET:
-            logger.warning(f"Invalid protocol request: {request.protocol} for HTTP endpoint")
+        # Check for WebSocket protocol (redirect to WebSocket endpoint)
+        if agent_request.protocol.lower() == ProtocolType.WEBSOCKET:
+            logger.warning("WebSocket protocol requested - redirecting to WebSocket endpoint")
             return {
                 "status": "error",
                 "error": {
@@ -122,81 +109,75 @@ async def agent_respond(request: AgentRequest):
                 }
             }
         # Get the protocol handler
-        protocol_handler = protocol_factory.get_protocol(request.protocol)
+        protocol_handler = protocol_factory.get_protocol(agent_request.protocol)
         if not protocol_handler:
-            logger.error(f"Unknown protocol requested: {request.protocol}")
+            logger.error(f"Unknown protocol requested: {agent_request.protocol}")
             return {
                 "status": "error",
                 "error": {
                     "code": "INVALID_PROTOCOL",
-                    "message": f"Unknown protocol: {request.protocol}"
+                    "message": f"Unsupported protocol: {agent_request.protocol}. Use 'http', 'sse', or 'websocket'."
                 }
             }
             
-        # Create a flow orchestrator
-        logger.info(f"Creating flow orchestrator with filter strategy: {request.filter_strategy}, tool tags: {request.tool_tags}")
+        # Create flow orchestrator based on request parameters
+        streaming_mode = agent_request.mode.lower() != "sync"
+        logger.info(f"Creating flow orchestrator: strategy={agent_request.filter_strategy}, tags={agent_request.tool_tags}, streaming={streaming_mode}")
         orchestrator = await _create_flow_orchestrator(
-            filter_strategy=request.filter_strategy,
-            tool_tags=request.tool_tags
+            filter_strategy=agent_request.filter_strategy,
+            tool_tags=agent_request.tool_tags,
+            streaming=streaming_mode
         )
         
         # Generate a conversation ID if not provided
-        conversation_id = request.conversation_id or str(uuid.uuid4())
+        conversation_id = agent_request.conversation_id or str(uuid.uuid4())
         logger.info(f"Using conversation ID: {conversation_id}")
         
-        # Check the mode
-        if request.mode.lower() == "sync":
-            # Synchronous mode
-            logger.info("Processing request in synchronous mode")
-            events = []
+        # Generate a conversation ID if not provided
+        conversation_id = agent_request.conversation_id or str(uuid.uuid4())
+        
+        # Check if streaming mode is requested with HTTP protocol (not supported)
+        if agent_request.mode.lower() != "sync" and agent_request.protocol.lower() == ProtocolType.HTTP:
+            logger.warning("HTTP protocol does not support streaming mode")
+            return {
+                "status": "error",
+                "error": {
+                    "code": "INVALID_MODE",
+                    "message": "HTTP protocol does not support streaming mode. Use 'sync' mode or 'sse'/'websocket' protocol."
+                }
+            }
             
-            # Define event callback
+        # Handle request based on mode
+        logger.info(f"Processing in {agent_request.mode} mode with {agent_request.protocol} protocol")
+        logger.info(f"Conversation ID: {conversation_id}")
+        
+        if agent_request.mode.lower() == "sync":
+            # Synchronous mode - collect all events
+            events = []
             async def event_callback(event: Event):
                 events.append(event)
-            
-            # 使用消息格式化工具创建标准格式的消息
-            from backend.core.utils.message_formatter import message_formatter
-            
-            # 调用编排器处理消息
-            logger.info(f"Invoking orchestrator with input: {request.input[:100]}...")
+                
+            # Invoke orchestrator
             await orchestrator.invoke(
-                request.input,
+                agent_request.input,
                 conversation_id=conversation_id,
                 event_callback=event_callback
             )
             
-            # Return the response using the protocol handler
-            logger.info(f"Processing {len(events)} events with protocol handler")
+            logger.info(f"Processed {len(events)} events")
             return await protocol_handler.handle_events(events)
-            
         else:
-            # Streaming mode
-            logger.info("Processing request in streaming mode")
-            if request.protocol.lower() == ProtocolType.HTTP:
-                # HTTP doesn't support streaming
-                logger.warning("HTTP protocol requested with streaming mode - not supported")
-                return {
-                    "status": "error",
-                    "error": {
-                        "code": "INVALID_MODE",
-                        "message": "HTTP protocol does not support streaming mode"
-                    }
-                }
-                
-            # Create event stream
-            logger.info("Creating event stream for streaming response")
+            # Streaming mode - create event stream
             event_stream = orchestrator.stream_invoke(
-                request.input,
+                agent_request.input,
                 conversation_id=conversation_id
             )
             
-            # Return the streaming response
-            logger.info("Streaming response to client")
+            logger.info(f"Streaming response using {agent_request.protocol} protocol")
             return await protocol_handler.handle_events(event_stream)
             
     except Exception as e:
         logger.error(f"Error processing agent request: {e}")
-        logger.error(f"Request that caused error: {request.dict() if request else 'No request data'}")
         return {
             "status": "error",
             "error": {
@@ -245,7 +226,8 @@ async def agent_websocket(websocket: WebSocket):
             logger.info(f"Creating WebSocket flow orchestrator with filter strategy: {request.filter_strategy}, tool tags: {request.tool_tags}")
             orchestrator = await _create_flow_orchestrator(
                 filter_strategy=request.filter_strategy,
-                tool_tags=request.tool_tags
+                tool_tags=request.tool_tags,
+                streaming=True
             )
             
             # Generate a conversation ID if not provided
@@ -314,6 +296,68 @@ async def analyze_query(request: AgentRequest):
             "status": "error",
             "error": {
                 "code": "ANALYSIS_ERROR",
+                "message": str(e)
+            }
+        }
+
+
+@router.get("/sse_respond")
+async def agent_sse_respond(
+    input: str = Query(..., description="User input query"),
+    conversation_id: Optional[str] = Query(None, description="Conversation ID for context"),
+    filter_strategy: Optional[str] = Query(None, description="Tool filter strategy"),
+    tool_tags: Optional[str] = Query(None, description="Comma-separated tool tags to filter by")
+):
+    """GET endpoint for SSE streaming responses."""
+    try:
+        # Log request parameters
+        logger.info(f"SSE respond request received - Input: {input[:100]}...")
+        logger.info(f"SSE request details - Conversation ID: {conversation_id}, Filter Strategy: {filter_strategy}, Tool Tags: {tool_tags}")
+        
+        # Parse tool tags if provided
+        parsed_tool_tags = tool_tags.split(",") if tool_tags else None
+        
+        # Create a flow orchestrator
+        logger.info(f"Creating SSE flow orchestrator with filter strategy: {filter_strategy}, tool tags: {parsed_tool_tags}")
+        orchestrator = await _create_flow_orchestrator(
+            filter_strategy=filter_strategy,
+            tool_tags=parsed_tool_tags,
+            streaming=True
+        )
+        
+        # Generate a conversation ID if not provided
+        conv_id = conversation_id or str(uuid.uuid4())
+        logger.info(f"Using conversation ID: {conv_id}")
+        
+        # Get the protocol handler
+        protocol_handler = protocol_factory.get_protocol(ProtocolType.SSE)
+        if not protocol_handler:
+            logger.error("SSE protocol handler not found")
+            return {
+                "status": "error",
+                "error": {
+                    "code": "INVALID_PROTOCOL",
+                    "message": "SSE protocol handler not found"
+                }
+            }
+        
+        # Create event stream
+        logger.info("Creating SSE event stream for streaming response")
+        event_stream = orchestrator.stream_invoke(
+            input,
+            conversation_id=conv_id
+        )
+        
+        # Return the streaming response
+        logger.info("Streaming SSE response to client")
+        return await protocol_handler.handle_events(event_stream)
+        
+    except Exception as e:
+        logger.error(f"Error processing SSE request: {e}")
+        return {
+            "status": "error",
+            "error": {
+                "code": "PROCESSING_ERROR",
                 "message": str(e)
             }
         }

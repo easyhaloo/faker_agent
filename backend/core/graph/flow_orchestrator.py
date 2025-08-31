@@ -95,6 +95,9 @@ class FlowOrchestrator:
             system_message: Optional system message for the LLM
             streaming: Whether to enable streaming mode
         """
+        # Configure streaming as early as possible to avoid attribute access before assignment
+        self.streaming = streaming
+        
         # Get filtered tools or tools from execution plan
         if execution_plan:
             # Get tools from execution plan
@@ -133,22 +136,19 @@ class FlowOrchestrator:
         # Create tool node
         self.tool_node = ToolNode(self.langchain_tools)
         
+        # Store system message
+        self.system_message = system_message or "You are a helpful assistant that can use tools to accomplish tasks."
+        
         # Set up the LLM model if provided
         self.llm_model = llm_model or get_chat_model()
         
         # Use provided LLM node or create default
         self.llm_node = llm_node or self._create_default_llm_node()
         
-        # Store system message
-        self.system_message = system_message or "You are a helpful assistant that can use tools to accomplish tasks."
-        
-        # Configure streaming
-        self.streaming = streaming
-        
         # Build the graph
         self.graph = self._build_graph()
         
-        logger.info(f"Initialized FlowOrchestrator with {len(self.tools)} tools, streaming={streaming}")
+        logger.info(f"Initialized FlowOrchestrator with {len(self.tools)} tools, streaming={self.streaming}")
     
     def _create_default_llm_node(self) -> Callable:
         """Create a default LLM node using the LLM factory."""
@@ -200,7 +200,7 @@ class FlowOrchestrator:
         graph = StateGraph(self.State)
         
         # Add nodes
-        graph.add_node("llm", self._call_llm)
+        graph.add_node("llm", self.llm_node)
         graph.add_node("action", self._execute_tools)
         
         # Add edges
@@ -228,56 +228,16 @@ class FlowOrchestrator:
         # based on the execution plan's tool chain
         return self._build_default_graph()
     
-    async def _call_llm(self, state: AgentState, context: AgentContext) -> Dict[str, List[Any]]:
-        """Call the LLM with the current state and context.
+    # Note: Previously this class defined an internal _call_llm that relied on private
+    # LLM APIs and a context parameter. The graph now uses self.llm_node created
+    # via the factory adapter, which avoids private API usage and matches the
+    # expected node signature for LangGraph.
         
-        Args:
-            state: The current agent state containing messages
-            context: Runtime context with conversation ID and callbacks
-            
-        Returns:
-            Updated state with LLM response added to messages
-        """
-        try:
-            # Extract messages from state
-            messages = state["messages"]
-            
-            # Convert messages to LangChain format if needed
-            langchain_messages = []
-            for msg in messages:
-                if isinstance(msg, (HumanMessage, AIMessage, ToolMessage)):
-                    # Already in LangChain format
-                    langchain_messages.append(msg)
-                else:
-                    # Convert to LangChain format
-                    langchain_messages.append(message_formatter.to_langchain_format(msg))
-            
-            # Call the LLM model
-            chat_result = await self.llm_model._agenerate(langchain_messages)
-            
-            # Get the generated message
-            ai_message = chat_result.generations[0].message
-            
-            # Create result in the format expected by the graph
-            result = {"messages": messages + [ai_message]}
-            
-            # Handle streaming tokens if an event callback is provided
-            if context.get("event_callback") and hasattr(ai_message, "content"):
-                # Send token events for streaming UI updates
-                await context["event_callback"](TokenEvent(token=ai_message.content, is_partial=False))
-                
-            return result
-        except Exception as e:
-            logger.error(f"Error in LLM call: {e}")
-            # Return an empty result to avoid breaking the flow
-            return {"messages": state["messages"]}
-    
-    async def _execute_tools(self, state: AgentState, context: AgentContext) -> Dict[str, List[Any]]:
+    async def _execute_tools(self, state: AgentState) -> Dict[str, List[Any]]:
         """Execute tools based on LLM output.
         
         Args:
             state: The current agent state containing messages
-            context: Runtime context with conversation ID and callbacks
             
         Returns:
             Updated state with tool results added to messages
@@ -297,6 +257,9 @@ class FlowOrchestrator:
         if not isinstance(last_message, AIMessage) or not hasattr(last_message, 'tool_calls') or not last_message.tool_calls:
             return {"messages": messages}
         
+        # Access optional event callback from state
+        event_callback = state.get("event_callback") if isinstance(state, dict) else None
+        
         # Process tool calls and collect results
         results = []
         for tool_call in last_message.tool_calls:
@@ -310,8 +273,8 @@ class FlowOrchestrator:
                 start_time = time.time()
                 
                 # Generate tool start event
-                if context.get("event_callback"):
-                    await context["event_callback"](ToolCallStartEvent(
+                if event_callback:
+                    await event_callback(ToolCallStartEvent(
                         tool_name=tool_name,
                         tool_args=tool_args,
                         tool_call_id=tool_call_id
@@ -340,8 +303,8 @@ class FlowOrchestrator:
                 execution_time = time.time() - start_time
                 
                 # Generate tool result event
-                if context.get("event_callback"):
-                    await context["event_callback"](ToolCallResultEvent(
+                if event_callback:
+                    await event_callback(ToolCallResultEvent(
                         tool_name=tool_name,
                         tool_call_id=tool_call_id,
                         result=result_str,
@@ -361,8 +324,8 @@ class FlowOrchestrator:
                 logger.error(error_msg)
                 
                 # Generate error event
-                if context.get("event_callback"):
-                    await context["event_callback"](ToolCallResultEvent(
+                if event_callback:
+                    await event_callback(ToolCallResultEvent(
                         tool_name=tool_call["name"],
                         tool_call_id=tool_call["id"],
                         result=None,
@@ -379,13 +342,12 @@ class FlowOrchestrator:
         
         # Return updated state with tool results added to messages
         return {"messages": messages + results}
-    
-    def _should_continue(self, state: AgentState, context: AgentContext) -> str:
+        
+    def _should_continue(self, state: AgentState) -> str:
         """Determine if the graph should continue or end based on the state.
         
         Args:
             state: The current agent state containing messages
-            context: Runtime context with conversation ID and callbacks
             
         Returns:
             'continue' if there are tool calls to execute, 'end' otherwise
@@ -406,7 +368,7 @@ class FlowOrchestrator:
             return "continue"
         else:
             return "end"
-    
+        
     async def invoke(
         self,
         input_message: str,
@@ -440,8 +402,8 @@ class FlowOrchestrator:
                 context["event_callback"] = event_callback
                 initial_state["event_callback"] = event_callback
             
-            # Invoke the graph with proper state and context
-            result = await self.graph.ainvoke(initial_state, context=context)
+            # Invoke the graph
+            result = await self.graph.ainvoke(initial_state)
             
             # Generate final event if callback is provided
             if event_callback:
@@ -551,7 +513,7 @@ class FlowOrchestrator:
                     try:
                         result = execution_task.result()
                         # Check if we need to send a final event
-                        if not any(event.type == EventType.FINAL for event in done):
+                        if not any(isinstance(task.result(), Event) and task.result().type == EventType.FINAL for task in done if task != execution_task):
                             # Extract messages and format final response
                             messages = result.get("messages", [])
                             final_message = messages[-1] if messages else None
