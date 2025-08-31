@@ -32,12 +32,24 @@ class Settings(BaseSettings):
     API_PREFIX: str = "/api"
     
     # CORS settings
-    CORS_ORIGINS: List[str] = ["http://localhost:5173"]
+    CORS_ORIGINS: List[str] = [
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+        "http://0.0.0.0:5173",
+        "http://0.0.0.0:5174"
+    ]
     
     # LiteLLM settings
     LITELLM_API_KEY: str = Field("", env="LITELLM_API_KEY")
-    LITELLM_MODEL: str = "openai/gpt-3.5-turbo"  # Default model with provider prefix
+    GEMINI_API_KEY: str = Field("", env="GEMINI_API_KEY")
+    GITHUB_API_BASE: str = Field("", env="GITHUB_API_BASE")
+    GITHUB_API_KEY: str = Field("", env="GITHUB_API_KEY")
+    # Default to GitHub Models provider to avoid OpenAI Assistants v2 paths
+    LITELLM_MODEL: str = "github/gpt-4o-mini"  # Default model with provider prefix
     LITELLM_BASE_URL: str = Field("", env="LITELLM_BASE_URL")  # Custom endpoint URL
+
     LITELLM_TEMPERATURE: float = 0.7
     LITELLM_MAX_TOKENS: int = 800
     LITELLM_TIMEOUT: float = 60.0  # Request timeout in seconds

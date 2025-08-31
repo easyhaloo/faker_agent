@@ -3,6 +3,7 @@ import { Bot, Terminal, ArrowRight, Check, AlertTriangle } from 'lucide-react';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { useAgentStore } from '../store/agentStore';
+import { cn } from '../utils/cn';
 
 /**
  * 流式响应组件
@@ -39,9 +40,9 @@ const StreamingResponse = ({ taskId }) => {
     const isCompleted = Boolean(toolCall.completed);
     
     return (
-      <div key={toolCall.id} className="mb-3 border border-gray-200 rounded-md overflow-hidden">
+      <div key={toolCall.id} className="mb-3 border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden">
         {/* 工具调用头部 */}
-        <div className="flex items-center justify-between bg-gray-50 px-3 py-2 border-b border-gray-200">
+        <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 px-3 py-2 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center">
             <Terminal size={14} className="mr-2 text-gray-600" />
             <span className="font-medium text-sm">{toolCall.toolCall.name}</span>
@@ -63,9 +64,9 @@ const StreamingResponse = ({ taskId }) => {
         </div>
         
         {/* 工具调用参数 */}
-        <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
+        <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
           <div className="text-xs text-gray-500 mb-1">参数:</div>
-          <pre className="text-xs bg-gray-100 p-2 rounded overflow-x-auto">
+          <pre className="text-xs bg-gray-100 dark:bg-gray-700 p-2 rounded overflow-x-auto text-gray-800 dark:text-gray-200">
             {JSON.stringify(toolCall.toolCall.arguments, null, 2)}
           </pre>
         </div>
@@ -74,7 +75,7 @@ const StreamingResponse = ({ taskId }) => {
         {isCompleted && (
           <div className="px-3 py-2">
             <div className="text-xs text-gray-500 mb-1">结果:</div>
-            <pre className="text-xs bg-gray-100 p-2 rounded overflow-x-auto max-h-32">
+            <pre className="text-xs bg-gray-100 dark:bg-gray-700 p-2 rounded overflow-x-auto max-h-32 text-gray-800 dark:text-gray-200">
               {typeof toolCall.result === 'object' 
                 ? JSON.stringify(toolCall.result, null, 2)
                 : toolCall.result}
@@ -88,10 +89,10 @@ const StreamingResponse = ({ taskId }) => {
   return (
     <Card className="mb-4 overflow-hidden">
       {/* 头部信息 */}
-      <div className="flex items-center justify-between bg-gray-50 px-4 py-2 border-b">
+      <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 px-4 py-2 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center">
           <Bot size={16} className="mr-2 text-gray-600" />
-          <span className="font-medium">任务处理中</span>
+          <span className="font-medium">{isLoading ? "任务处理中" : (task.response ? "任务已完成" : "任务处理失败")}</span>
           {isLoading && (
             <div className="ml-2 flex space-x-1">
               <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce"></div>
@@ -131,11 +132,22 @@ const StreamingResponse = ({ taskId }) => {
             </div>
           )}
           
+          {/* 显示响应或错误消息 */}
           {task.response && (
             <div className="mt-3">
               <div className="text-sm font-medium mb-2">最终响应:</div>
-              <div className="whitespace-pre-wrap text-sm bg-gray-50 p-3 rounded-md border border-gray-200">
+              <div className="whitespace-pre-wrap text-sm bg-gray-50 dark:bg-gray-800 p-3 rounded-md border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200">
                 {task.response}
+              </div>
+            </div>
+          )}
+          
+          {/* 错误消息 - 当没有响应但任务已完成时显示 */}
+          {!task.response && !isLoading && (
+            <div className="mt-3">
+              <div className="text-sm font-medium mb-2 text-orange-500">系统提示:</div>
+              <div className="whitespace-pre-wrap text-sm bg-orange-50 dark:bg-orange-900/20 p-3 rounded-md border border-orange-200 dark:border-orange-800/30 text-orange-700 dark:text-orange-300">
+                AI暂时无法回答您的问题，请稍后重试。
               </div>
             </div>
           )}

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { agentService } from '../services/agentService';
 import { ProtocolType, ModeType, EventType } from '../services/agentService';
+import { extractTextResponse, extractToolCalls, isErrorResponse, isEmptyResponse, DEFAULT_FALLBACK_MESSAGES } from '../services/responseAdapter';
 
 // 智能压缩消息历史以控制上下文长度
 const compressMessagesIntelligently = (messages, maxLength = 10) => {
@@ -116,8 +117,9 @@ export const useAgentStore = create(
         return newUserMessage.id;
       },
       
-      // 添加助手消息
+      // 添加助手消息并重置加载状态
       addAssistantMessage: (content, taskId = null) => {
+        // 创建新消息
         const newAssistantMessage = {
           id: Date.now().toString(),
           role: 'assistant',
@@ -126,13 +128,15 @@ export const useAgentStore = create(
           timestamp: new Date().toISOString(),
         };
         
+        // 更新消息列表
         set((state) => {
           const updatedMessages = [...state.messages, newAssistantMessage];
-          // 使用token限制进行压缩
           const compressedMessages = compressMessagesByTokenLimit(updatedMessages, 3000);
-            
           return { messages: compressedMessages };
         });
+        
+        // 使用延时确保消息渲染后再重置加载状态
+        setTimeout(() => get().setLoading(false), 50);
       },
       
       // 设置协议类型
@@ -160,8 +164,16 @@ export const useAgentStore = create(
       // 清空工具标签
       clearToolTags: () => set({ toolTags: [] }),
       
+      // 清空消息记录
+      clearMessages: () => set({ messages: [] }),
+      
       // 设置可用工具列表
-      setAvailableTools: (tools) => set({ availableTools: tools }),
+      setAvailableTools: (toolsData) => {
+        console.log('[DEBUG] Setting available tools:', toolsData);
+        // Check if data has the expected tools array structure
+        const tools = toolsData?.tools || [];
+        set({ availableTools: tools });
+      },
       
       // 设置可用过滤策略列表
       setFilterStrategies: (strategies) => set({ filterStrategies: strategies }),
@@ -269,38 +281,62 @@ export const useAgentStore = create(
       
       // 处理从服务器收到的事件
       handleServerEvent: (event) => {
-        const { type, data } = event;
+
+        // Ensure we're working with an adapted event
+        const { status, data, error, type } = event;
         
-        switch (type) {
-          case EventType.TOOL_CALL_START:
-            get().addToolCallStartEvent(data.task_id, data.tool_call);
-            break;
-            
-          case EventType.TOOL_CALL_RESULT:
-            get().addToolCallResultEvent(data.task_id, data.tool_call_id, data.result);
-            break;
-            
-          case EventType.TOKEN:
-            // 处理流式文本token
-            break;
-            
-          case EventType.FINAL:
-            // 处理最终响应
-            if (data.response) {
-              get().addAssistantMessage(data.response, data.task_id);
+        // Process by event type for streaming events
+        if (type) {
+          switch (type) {
+            case EventType.TOOL_CALL_START:
+              get().addToolCallStartEvent(data.task_id, data.tool_call);
+              break;
+              
+            case EventType.TOOL_CALL_RESULT:
+              get().addToolCallResultEvent(data.task_id, data.tool_call_id, data.result);
+              break;
+              
+            case EventType.TOKEN:
+              // 处理流式文本token
+              break;
+              
+            case EventType.FINAL:
+              // 处理最终响应
+              if (data && data.response) {
+                get().addAssistantMessage(data.response, data.task_id);
+              } else if (data && typeof data === 'string') {
+                get().addAssistantMessage(data, null);
+              } else {
+                // 处理空响应
+                get().addAssistantMessage(DEFAULT_FALLBACK_MESSAGES.empty);
+              }
+              // 关闭连接 (加载状态已在addAssistantMessage中重置)
+              get().closeConnection();
+              break;
+              
+            case EventType.ERROR:
+              get().setError(error?.message || data?.error || 'Unknown error');
+              get().setLoading(false);
+              get().closeConnection();
+              break;
+              
+            default:
+              console.warn('Unknown event type:', type);
+          }
+        } 
+        // Process response status for non-streaming events
+        else if (status) {
+          if (status === 'error') {
+            get().setError(error?.message || 'Unknown error');
+            get().setLoading(false);
+          } else if (status === 'success') {
+            // Extract response
+            const responseText = extractTextResponse(event);
+            if (responseText) {
+              get().addAssistantMessage(responseText, data?.task_id);
             }
-            get().setLoading(false);
-            get().closeConnection();
-            break;
-            
-          case EventType.ERROR:
-            get().setError(data.error || 'Unknown error');
-            get().setLoading(false);
-            get().closeConnection();
-            break;
-            
-          default:
-            console.warn('Unknown event type:', type);
+            // 加载状态在addAssistantMessage中重置
+          }
         }
       },
       
@@ -319,6 +355,7 @@ export const useAgentStore = create(
       
       // 发送消息到代理
       sendMessageToAgent: async (content, conversationId = null) => {
+
         const messageId = get().addUserMessage(content);
         get().setLoading(true);
         get().clearError();
@@ -340,22 +377,47 @@ export const useAgentStore = create(
               toolTags
             });
             
-            if (response.status === 'success') {
-              // 如果有任务ID，设置为当前任务
+            // Check if response indicates an error
+            if (isErrorResponse(response)) {
+              const errorMessage = response.error?.message || DEFAULT_FALLBACK_MESSAGES.error;
+              get().setError(errorMessage);
+              get().addAssistantMessage(`Error: ${errorMessage}`);
+            } 
+            // Check if response is empty
+            else if (isEmptyResponse(response)) {
+              get().addAssistantMessage(DEFAULT_FALLBACK_MESSAGES.empty);
+              // 加载状态在addAssistantMessage中重置
+            } else {
+              // Extract the response text
+              const responseText = extractTextResponse(response);
+              
+              // If there's a task ID, set it as current task
               if (response.data.task_id) {
                 get().setCurrentTaskId(response.data.task_id);
                 get().addTask(response.data.task_id, {
                   query: content,
-                  response: response.data.response,
+                  response: responseText,
                 });
               }
               
-              // 添加助手回复
-              get().addAssistantMessage(response.data.response, response.data.task_id);
-            } else {
-              const errorMessage = response.error?.message || 'Unknown error occurred';
-              get().setError(errorMessage);
-              get().addAssistantMessage(`Error: ${errorMessage}`);
+              // Extract any tool calls
+              const toolCalls = extractToolCalls(response);
+              if (toolCalls && toolCalls.length > 0) {
+                // Process tool calls if needed
+                toolCalls.forEach(toolCall => {
+                  // Handle each tool call result
+                  if (toolCall.status === 'completed') {
+                    get().addToolCallResultEvent(
+                      response.data.task_id || 'default',
+                      toolCall.tool_call_id,
+                      toolCall.result
+                    );
+                  }
+                });
+              }
+              
+              // Add assistant message with the extracted response text
+              get().addAssistantMessage(responseText, response.data.task_id);
             }
           } else if (protocol === ProtocolType.SSE && mode === ModeType.STREAM) {
             // 流式SSE请求
@@ -386,6 +448,7 @@ export const useAgentStore = create(
           get().setError(errorMessage);
           get().addAssistantMessage(`Error: ${errorMessage}`);
           get().setLoading(false);
+          get().closeConnection();
         }
       },
       
@@ -393,11 +456,22 @@ export const useAgentStore = create(
       fetchAvailableTools: async () => {
         try {
           const response = await agentService.getAvailableTools();
+          
           if (response.status === 'success') {
-            get().setAvailableTools(response.data);
+            if (response.data && response.data.tools) {
+              // Correct structure, set tools directly
+              get().setAvailableTools(response.data);
+            } else {
+              // Missing tools array
+              get().setAvailableTools({ tools: [] });
+            }
+          } else {
+            // Error response
+            get().setAvailableTools({ tools: [] });
           }
         } catch (error) {
           console.error('Error fetching available tools:', error);
+          get().setAvailableTools({ tools: [] });
         }
       },
       

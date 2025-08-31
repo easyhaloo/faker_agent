@@ -1,38 +1,66 @@
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAgentStore } from './store/agentStore';
+import { motion, AnimatePresence } from 'framer-motion';
 import EnhancedChatPanel from './components/chat/EnhancedChatPanel.jsx';
-import Sidebar from './components/Sidebar';
+import ConversationSidebar from './components/chat/ConversationSidebar';
+import ConversationManager from './components/chat/ConversationManager';
 import SystemSettings from './components/ui/SystemSettings';
+import { I18nProvider } from './i18n/index.jsx';
 
 function App() {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const initializeStore = useAgentStore((state) => state.initialize);
   const fetchAvailableTools = useAgentStore((state) => state.fetchAvailableTools);
   const fetchFilterStrategies = useAgentStore((state) => state.fetchFilterStrategies);
+  
+  // Sidebar state change callback
+  const handleSidebarStateChange = (isOpen) => {
+    setIsSidebarOpen(isOpen);
+  };
 
   useEffect(() => {
-    // 初始化Store
+    // Initialize stores
     initializeStore();
     
-    // 获取可用工具和过滤策略
+    // Fetch available tools and filter strategies
     fetchAvailableTools();
     fetchFilterStrategies();
   }, [initializeStore, fetchAvailableTools, fetchFilterStrategies]);
 
   return (
-    <div className="flex h-screen">
-      {/* Sidebar */}
-      <aside className="w-60 hidden md:flex flex-col">
-        <Sidebar />
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col">
-        <div className="flex justify-end p-4">
-          <SystemSettings />
+    <I18nProvider>
+      <div className="flex h-screen overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+        {/* Main content with two modes */}
+        <div className="flex-1 flex flex-col max-h-full overflow-hidden">
+          {/* 系统设置按钮已移至侧边栏底部 */}
+          
+          {/* Toggle between old and new UI */}
+          <div className="flex-1 overflow-hidden">
+            {/* New Conversation Manager UI */}
+            <ConversationManager />
+            
+            {/* Old UI (commented out) */}
+            {/* 
+            <motion.main 
+              className="flex-1 flex flex-col max-h-full"
+              initial={{ marginLeft: 0 }}
+              animate={{ 
+                marginLeft: isSidebarOpen ? '10px' : 0,
+                borderRadius: isSidebarOpen ? '12px 0 0 12px' : '0',
+                boxShadow: isSidebarOpen ? '-4px 0 20px rgba(0, 0, 0, 0.05)' : 'none'
+              }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            >
+              <div className="flex-1 overflow-hidden">
+                <EnhancedChatPanel />
+              </div>
+              <ConversationSidebar onStateChange={handleSidebarStateChange} />
+            </motion.main>
+            */}
+          </div>
         </div>
-        <EnhancedChatPanel />
-      </main>
-    </div>
+      </div>
+    </I18nProvider>
   );
 }
 

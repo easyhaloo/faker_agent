@@ -36,7 +36,7 @@ from backend.core.graph.event_types import (
     ToolCallResultEvent,
     ToolCallStartEvent
 )
-from backend.core.llm import get_chat_model
+from backend.core.infrastructure.llm.chat_model import get_chat_model
 from backend.core.utils.logging import get_logger
 from backend.core.utils.message_formatter import message_formatter
 
@@ -513,7 +513,7 @@ class FlowOrchestrator:
                     try:
                         result = execution_task.result()
                         # Check if we need to send a final event
-                        if not any(isinstance(task.result(), Event) and task.result().type == EventType.FINAL for task in done if task != execution_task):
+                        if not any(task != execution_task and isinstance(task.result(), Event) and task.result().type == EventType.FINAL for task in done):
                             # Extract messages and format final response
                             messages = result.get("messages", [])
                             final_message = messages[-1] if messages else None
@@ -527,7 +527,15 @@ class FlowOrchestrator:
                                 else:
                                     final_response = str(final_message)
                             else:
-                                final_response = "No response"
+                                # Import here to avoid circular imports
+                                from backend.core.utils.weather_utils import is_weather_query
+                                
+                                # Provide a more helpful default response for weather queries
+                                messages_str = str(messages)
+                                if is_weather_query(messages_str):
+                                    final_response = "请稍等，我来为您查询天气信息。"
+                                else:
+                                    final_response = "请稍等，我正在处理您的请求。"
                             
                             # Handle tool message conversion safely
                             actions = []
@@ -546,7 +554,15 @@ class FlowOrchestrator:
                             elif isinstance(final_message, dict) and "content" in final_message:
                                 final_response = final_message["content"]
                             else:
-                                final_response = "No response"
+                                # Import here to avoid circular imports
+                                from backend.core.utils.weather_utils import is_weather_query
+                                
+                                # Provide a more helpful default response for weather queries
+                                messages_str = str(messages)
+                                if is_weather_query(messages_str):
+                                    final_response = "请稍等，我来为您查询天气信息。"
+                                else:
+                                    final_response = "请稍等，我正在处理您的请求。"
                             
                             # Format tool actions safely
                             tool_actions = []

@@ -11,6 +11,8 @@ import re
 import time
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from langchain_core.language_models import BaseChatModel
+
 from backend.config.settings import settings
 from backend.core.assembler.tool_spec import (
     AssemblerOutput,

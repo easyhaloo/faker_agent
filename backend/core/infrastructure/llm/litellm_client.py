@@ -21,7 +21,7 @@ from backend.core.errors import ModelError, ConfigurationError
 
 # Configure logger
 logger = logging.getLogger(__name__)
-os.environ["LITELLM_LOG"] = "DEBUG"  # Enable debug logging
+# os.environ["LITELLM_LOG"] = "DEBUG"  # Enable debug logging
 litellm._turn_on_debug()
 
 class LiteLLMClient:

@@ -3,6 +3,7 @@ SSE (Server-Sent Events) protocol handler for the Faker Agent.
 """
 import json
 import logging
+import time
 from typing import Any, AsyncGenerator, Dict, Optional
 
 from fastapi.responses import StreamingResponse
@@ -19,7 +20,6 @@ class SSEProtocol(BaseProtocol):
     SSE protocol handler.
     
     This handler formats events as SSE messages for streaming responses.
-    Supports both GET and POST requests.
     """
     
     async def handle_events(self, events: AsyncGenerator[Event, None], **kwargs) -> StreamingResponse:
@@ -52,7 +52,13 @@ class SSEProtocol(BaseProtocol):
         
         return StreamingResponse(
             event_stream(),
-            media_type="text/event-stream"
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Content-Type": "text/event-stream",
+                "X-Accel-Buffering": "no"
+            }
         )
     
     async def format_event(self, event: Event) -> str:
@@ -65,11 +71,55 @@ class SSEProtocol(BaseProtocol):
         Returns:
             SSE-formatted event
         """
-        # Convert event to JSON
-        event_json = json.dumps(event.dict())
-        
-        # Format as SSE message
-        return f"data: {event_json}\n\n"
+        try:
+            # Convert event to JSON
+            # Use model_dump for newer Pydantic or dict() for older versions
+            if hasattr(event, "model_dump"):
+                event_data = event.model_dump()
+            elif hasattr(event, "dict"):
+                event_data = event.dict()
+            else:
+                # Fallback for non-Pydantic objects
+                event_data = {
+                    "type": str(event.type),
+                    "timestamp": getattr(event, "timestamp", time.time())
+                }
+                
+                # Add other attributes based on event type
+                if hasattr(event, "response"):
+                    event_data["response"] = event.response
+                if hasattr(event, "actions"):
+                    event_data["actions"] = event.actions
+                if hasattr(event, "tool_name"):
+                    event_data["tool_name"] = event.tool_name
+                if hasattr(event, "tool_args"):
+                    event_data["tool_args"] = event.tool_args
+                if hasattr(event, "tool_call_id"):
+                    event_data["tool_call_id"] = event.tool_call_id
+                if hasattr(event, "result"):
+                    event_data["result"] = event.result
+                if hasattr(event, "error"):
+                    event_data["error"] = event.error
+                if hasattr(event, "token"):
+                    event_data["token"] = event.token
+                if hasattr(event, "is_partial"):
+                    event_data["is_partial"] = event.is_partial
+            
+            # Convert to JSON with error handling
+            event_json = json.dumps(event_data)
+            
+            # Format as SSE message
+            return f"data: {event_json}\n\n"
+            
+        except Exception as e:
+            logger.error(f"Error formatting SSE event: {e}")
+            # Return a simplified error event as fallback
+            error_data = {
+                "type": "error",
+                "timestamp": time.time(),
+                "error": f"Error formatting event: {str(e)}"
+            }
+            return f"data: {json.dumps(error_data)}\n\n"
     
     async def format_error(self, error: str, details: Optional[Dict[str, Any]] = None) -> str:
         """

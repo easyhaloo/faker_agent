@@ -6,6 +6,7 @@ from typing import Any, Dict
 from backend.core.graph.agent_graph import AgentGraph
 from backend.core.utils.logging import get_logger
 from backend.core.utils.message_formatter import message_formatter
+from backend.core.utils.weather_utils import is_weather_query, get_weather_response
 
 # Configure logger
 logger = get_logger(__name__)
@@ -39,44 +40,10 @@ class Agent:
             # If decoding fails, use a placeholder
             query = str(query)
         
-        # Detect if the query is about weather (both English and Chinese)
-        is_weather_query = False
-        chinese_weather = "天气" in query
-        english_weather = "weather" in query.lower()
-        
-        if chinese_weather or english_weather:
-            is_weather_query = True
-            
-        # Extract city if it's a weather query
-        city = "北京"  # Default city
-        if is_weather_query:
-            if "北京" in query:
-                city = "北京"
-            elif "上海" in query:
-                city = "上海"
-            elif "广州" in query:
-                city = "广州"
-            elif "深圳" in query:
-                city = "深圳"
-        
-        # Direct response for weather queries
-        if is_weather_query:
-            # 使用消息格式化工具创建标准的消息格式
-            tool_message = message_formatter.to_dict_format({
-                "role": "tool",
-                "content": f"今天{city}天气晴朗，气温20-28度，适合户外活动。",
-                "name": "weather_assistant",
-                "tool_call_id": "weather_call_1"
-            })
-            
-            return {
-                "status": "success",
-                "data": {
-                    "query": query,
-                    "result": f"今天{city}天气晴朗，气温20-28度，适合户外活动。",
-                    "actions": [tool_message]
-                }
-            }
+        # Check if this is a weather query using centralized detection
+        if is_weather_query(query):
+            # Get weather response using centralized utility
+            return await get_weather_response(query)
             
         # 调用LangGraph进行处理
         try:

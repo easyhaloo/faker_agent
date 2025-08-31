@@ -2,6 +2,7 @@ import React from 'react';
 import { Button } from './ui/button';
 import { useAgentStore } from '../store/agentStore';
 import { ProtocolType, ModeType } from '../services/agentService';
+import { cn } from '../utils/cn';
 
 /**
  * 协议选择器组件
@@ -58,17 +59,24 @@ const ProtocolSelector = () => {
   };
 
   return (
-    <div className="mb-4 space-y-3">
-      <div className="space-y-2">
-        <div className="flex items-center">
-          <label className="text-sm font-medium text-gray-700 mr-2">协议:</label>
-          <div className="flex space-x-2">
+    <div className="space-y-3">
+      <div className="space-y-3">
+        {/* 协议选择 */}
+        <div>
+          <label className="text-sm text-gray-700 dark:text-gray-300 mb-1.5 block">通信协议:</label>
+          <div className="flex flex-wrap gap-2">
             {protocolOptions.map((option) => (
               <Button
                 key={option.value}
                 onClick={() => handleProtocolChange(option.value)}
                 variant={protocol === option.value ? "default" : "outline"}
                 size="sm"
+                className={cn(
+                  "text-xs px-3 py-1 h-7",
+                  protocol === option.value 
+                    ? "bg-blue-500 hover:bg-blue-600" 
+                    : "bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600"
+                )}
                 disabled={isLoading}
                 title={option.description}
               >
@@ -78,15 +86,22 @@ const ProtocolSelector = () => {
           </div>
         </div>
         
-        <div className="flex items-center">
-          <label className="text-sm font-medium text-gray-700 mr-2">模式:</label>
-          <div className="flex space-x-2">
+        {/* 模式选择 */}
+        <div>
+          <label className="text-sm text-gray-700 dark:text-gray-300 mb-1.5 block">响应模式:</label>
+          <div className="flex flex-wrap gap-2">
             {modeOptions.map((option) => (
               <Button
                 key={option.value}
                 onClick={() => handleModeChange(option.value)}
                 variant={mode === option.value ? "default" : "outline"}
                 size="sm"
+                className={cn(
+                  "text-xs px-3 py-1 h-7",
+                  mode === option.value 
+                    ? "bg-blue-500 hover:bg-blue-600" 
+                    : "bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600"
+                )}
                 disabled={
                   isLoading || 
                   // 如果是同步模式，禁用除HTTP以外的协议
@@ -103,15 +118,24 @@ const ProtocolSelector = () => {
         </div>
       </div>
       
-      <div className="text-xs text-gray-500 italic">
+      <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 rounded-md p-2 mt-2">
         {protocol === ProtocolType.HTTP && mode === ModeType.SYNC && (
-          "HTTP同步模式: 发送请求后等待完整响应"
+          <div className="flex items-center gap-1.5">
+            <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>
+            HTTP同步模式: 发送请求后等待完整响应
+          </div>
         )}
         {protocol === ProtocolType.SSE && mode === ModeType.STREAM && (
-          "SSE流式模式: 服务器持续发送事件流，支持工具调用可视化"
+          <div className="flex items-center gap-1.5">
+            <span className="inline-block w-2 h-2 rounded-full bg-blue-500"></span>
+            SSE流式模式: 服务器持续发送事件流，支持工具调用可视化
+          </div>
         )}
         {protocol === ProtocolType.WEBSOCKET && mode === ModeType.STREAM && (
-          "WebSocket流式模式: 双向实时通信，支持工具调用可视化"
+          <div className="flex items-center gap-1.5">
+            <span className="inline-block w-2 h-2 rounded-full bg-purple-500"></span>
+            WebSocket流式模式: 双向实时通信，支持工具调用可视化
+          </div>
         )}
       </div>
     </div>

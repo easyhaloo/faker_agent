@@ -4,14 +4,12 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Card, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
-import { Send, Bot, User, Settings, Sliders } from 'lucide-react';
-import ProtocolSelector from '../ProtocolSelector';
-import ToolTagSelector from '../ToolTagSelector';
+import { Send, Bot, User, ChevronDown } from 'lucide-react';
 import StreamingResponse from '../StreamingResponse';
+import { cn } from '../../utils/cn';
 
 const EnhancedChatPanel = () => {
   const [inputValue, setInputValue] = useState('');
-  const [showSettings, setShowSettings] = useState(false);
   const messagesEndRef = useRef(null);
   
   const messages = useAgentStore((state) => state.messages);
@@ -23,13 +21,89 @@ const EnhancedChatPanel = () => {
   const sendMessageToAgent = useAgentStore((state) => state.sendMessageToAgent);
   
   // 滚动到底部
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = (behavior = 'smooth') => {
+    if (messagesEndRef.current) {
+      // 使用平滑滚动到底部
+      messagesEndRef.current.scrollIntoView({ behavior, block: 'end' });
+    }
   };
   
+  // 测试监听滚动事件并检测是否需要自动滚动
+  const [isUserScrolling, setIsUserScrolling] = useState(false);
+  const [isScrollAtBottom, setIsScrollAtBottom] = useState(true);
+  const scrollTimeout = useRef(null);
+  const messagesContainerRef = useRef(null);
+  
+  // 检测是否滚动到底部
+  const checkIfScrollAtBottom = () => {
+    if (!messagesContainerRef.current) return true;
+    
+    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+    // 允许2像素的误差
+    const isAtBottom = scrollHeight - scrollTop - clientHeight <= 2;
+    setIsScrollAtBottom(isAtBottom);
+    return isAtBottom;
+  };
+  
+  // 监听滚动事件
+  const handleScroll = () => {
+    if (scrollTimeout.current) {
+      clearTimeout(scrollTimeout.current);
+    }
+    
+    setIsUserScrolling(true);
+    checkIfScrollAtBottom();
+    
+    // 300ms 后设置用户不再滚动
+    scrollTimeout.current = setTimeout(() => {
+      setIsUserScrolling(false);
+    }, 300);
+  };
+  
+  // 添加滚动监听
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.addEventListener('scroll', handleScroll);
+      
+      return () => {
+        container.removeEventListener('scroll', handleScroll);
+      };
+    }
+  }, []);
+  
+  // 消息更新时自动滚动到底部
+  useEffect(() => {
+    // 如果用户没有手动滚动或者滚动到了底部，则自动滚动到底部
+    if (!isUserScrolling || isScrollAtBottom) {
+      // 等待DOM更新后再滚动
+      const timeoutId = setTimeout(() => {
+        scrollToBottom();
+      }, 100);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [messages, isUserScrolling, isScrollAtBottom]);
+  
+  // 初始加载时强制滚动到底部
+  useEffect(() => {
+    scrollToBottom('auto');
+    checkIfScrollAtBottom();
+  }, []);
+
+  
+  // 确保助手消息渲染完成后停止加载状态
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+    if (messages.length > 0 && lastMessage?.role === 'assistant') {
+      // 在下一个渲染周期确保加载状态关闭
+      requestAnimationFrame(() => {
+        if (isLoading) {
+          useAgentStore.getState().setLoading(false);
+        }
+      });
+    }
+  }, [messages, isLoading]);
   
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -39,51 +113,34 @@ const EnhancedChatPanel = () => {
     setInputValue('');
   };
   
-  // 切换设置面板显示状态
-  const toggleSettings = () => {
-    setShowSettings(!showSettings);
-  };
+  // EnhancedChatPanel不再需要内部管理设置显示状态
+  // 现在使用SystemSettings组件管理设置面板
 
   return (
-    <div className="flex flex-col h-[calc(100vh-200px)]">
-      {/* 设置按钮 */}
-      <div className="flex justify-end px-4 py-2 bg-gray-50 border-b border-gray-200">
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={toggleSettings}
-          className="text-xs flex items-center gap-1"
-        >
-          <Sliders size={14} />
-          <span>{showSettings ? '隐藏设置' : '显示设置'}</span>
-        </Button>
+    <div className="flex flex-col h-full relative w-full bg-gradient-to-b from-white to-gray-50 dark:from-gray-800 dark:to-gray-900">
+      {/* 功能区域 */}
+      <div className="flex justify-end px-4 py-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        {/* 保留空白区域供布局占位 */}
       </div>
       
-      {/* 设置面板 */}
-      {showSettings && (
-        <div className="p-4 bg-gray-50 border-b border-gray-200">
-          <div className="mb-3">
-            <h3 className="text-sm font-medium text-gray-700 mb-2">智能体通信设置</h3>
-            <ProtocolSelector />
-          </div>
-          
-          <div>
-            <ToolTagSelector />
-          </div>
-        </div>
-      )}
-      
-      {/* 流式响应区域 - 在流式模式下显示工具调用 */}
-      {isLoading && currentTaskId && mode === 'stream' && (
+      {/* 任务状态和工具调用信息 */}
+      {currentTaskId && (
         <div className="px-4 py-2">
           <StreamingResponse taskId={currentTaskId} />
         </div>
       )}
       
       {/* 消息区域 */}
-      <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
+      <CardContent className="flex-1 overflow-y-auto p-4 flex flex-col" ref={messagesContainerRef}>
+        {/* 错误消息显示 */}
+        {error && (
+          <div className="mb-3 p-3 bg-red-50 text-red-700 rounded-lg text-sm border border-red-200 sticky top-0 z-10">
+            <div className="font-medium">Error</div>
+            <div>{error}</div>
+          </div>
+        )}
         {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-gray-500">
+          <div className="flex-1 flex flex-col items-center justify-center text-gray-500">
             <div className="text-center mb-6">
               <div className="bg-gray-100 p-4 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
                 <Bot className="h-8 w-8 text-gray-400" />
@@ -121,66 +178,130 @@ const EnhancedChatPanel = () => {
             </div>
           </div>
         ) : (
-          messages.map((message) => (
-            <div 
-              key={message.id} 
-              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div 
-                className={`max-w-[85%] rounded-2xl p-4 ${
-                  message.role === 'user' 
-                    ? 'bg-blue-500 text-white rounded-tr-none' 
-                    : 'bg-gray-100 text-gray-800 rounded-tl-none'
-                }`}
-              >
-                <div className="flex items-start gap-2">
-                  <div className={`mt-0.5 ${message.role === 'user' ? 'text-white' : 'text-gray-500'}`}>
-                    {message.role === 'user' ? <User size={16} /> : <Bot size={16} />}
-                  </div>
-                  <div className="flex-1">
-                    <div className="whitespace-pre-wrap break-words">
-                      {message.content}
+          <div className="flex-1 flex flex-col space-y-4">
+            {messages.map((message, index) => {
+              // 检查是否与前一条消息是同一角色
+              const isPreviousSameRole = index > 0 && messages[index - 1].role === message.role;
+              // 检查是否与下一条消息是同一角色
+              const isNextSameRole = index < messages.length - 1 && messages[index + 1].role === message.role;
+              
+              // 根据消息连续性设置不同的圆角和间距
+              const messageContainerClass = cn(
+                message.role === 'user' ? 'justify-end' : 'justify-start',
+                isPreviousSameRole ? 'mt-1' : 'mt-4'
+              );
+              
+              // 设置消息气泡的圆角样式
+              const bubbleRadiusClass = message.role === 'user'
+                ? isPreviousSameRole && isNextSameRole ? 'rounded-l-2xl rounded-r-md' 
+                  : isPreviousSameRole ? 'rounded-l-2xl rounded-tr-md rounded-br-2xl' 
+                  : isNextSameRole ? 'rounded-l-2xl rounded-tr-2xl rounded-br-md' 
+                  : 'rounded-2xl rounded-tr-none'
+                : isPreviousSameRole && isNextSameRole ? 'rounded-r-2xl rounded-l-md' 
+                  : isPreviousSameRole ? 'rounded-r-2xl rounded-tl-md rounded-bl-2xl' 
+                  : isNextSameRole ? 'rounded-r-2xl rounded-tl-2xl rounded-bl-md' 
+                  : 'rounded-2xl rounded-tl-none';
+              
+              return (
+                <div 
+                  key={message.id} 
+                  className={`flex ${messageContainerClass}`}
+                >
+                  {/* 只在序列中第一个助手消息上显示图标 */}
+                  {message.role === 'assistant' && !isPreviousSameRole && (
+                    <div className="flex items-center justify-center h-8 w-8 rounded-full bg-gray-200 dark:bg-gray-700 mr-2">
+                      <Bot size={18} className="text-gray-600 dark:text-gray-300" />
                     </div>
-                    {message.taskId && message.role === 'assistant' && (
-                      <div className="mt-2">
-                        <Badge variant="secondary" className="text-xs">
-                          Task ID: {message.taskId}
-                        </Badge>
-                        {protocol !== 'http' && (
-                          <Badge variant="outline" className="ml-2 text-xs">
-                            {protocol.toUpperCase()}
-                          </Badge>
+                  )}
+                  {message.role === 'assistant' && isPreviousSameRole && (
+                    <div className="w-8 mr-2"></div>
+                  )}
+                  
+                  <div 
+                    className={cn(
+                      "max-w-[85%] p-4",
+                      bubbleRadiusClass,
+                      message.role === 'user' 
+                        ? "bg-blue-500 text-white" 
+                        : "bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200"
+                    )}
+                  >
+                    <div className="flex items-start">
+                      {/* 只在序列中第一个用户消息上显示图标 */}
+                      {message.role === 'user' && !isPreviousSameRole && (
+                        <div className="text-white mr-2 mt-0.5">
+                          <User size={16} />
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <div className="whitespace-pre-wrap break-words">
+                          {message.content}
+                        </div>
+                        {message.taskId && message.role === 'assistant' && (
+                          <div className="mt-2">
+                            <Badge variant="secondary" className="text-xs">
+                              Task ID: {message.taskId}
+                            </Badge>
+                            {protocol !== 'http' && (
+                              <Badge variant="outline" className="ml-2 text-xs">
+                                {protocol.toUpperCase()}
+                              </Badge>
+                            )}
+                          </div>
                         )}
                       </div>
-                    )}
+                    </div>
                   </div>
+                  
+                  {/* 只在序列中第一个用户消息上显示头像 */}
+                  {message.role === 'user' && !isPreviousSameRole && (
+                    <div className="flex items-center justify-center h-8 w-8 rounded-full bg-blue-200 dark:bg-blue-700 ml-2">
+                      <User size={18} className="text-blue-600 dark:text-blue-200" />
+                    </div>
+                  )}
+                  {message.role === 'user' && isPreviousSameRole && (
+                    <div className="w-8 ml-2"></div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {messages.length > 0 && isLoading && (
+          <div className="flex justify-start mt-1" data-testid="loading-indicator">
+            <div className="flex items-center">
+              <div className="flex items-center justify-center h-8 w-8 rounded-full bg-gray-200 dark:bg-gray-700 mr-2">
+                <Bot size={18} className="text-gray-600 dark:text-gray-300" />
+              </div>
+              <div className="bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-2xl rounded-tl-none p-3">
+                <div className="flex space-x-2">
+                  <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce"></div>
+                  <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce delay-75"></div>
+                  <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce delay-150"></div>
                 </div>
               </div>
             </div>
-          ))
-        )}
-        {isLoading && protocol === 'http' && (
-          <div className="flex justify-start">
-            <div className="bg-gray-100 text-gray-800 rounded-2xl rounded-tl-none p-4">
-              <div className="flex space-x-2">
-                <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce"></div>
-                <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce delay-75"></div>
-                <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce delay-150"></div>
-              </div>
-            </div>
           </div>
         )}
-        <div ref={messagesEndRef} />
+        <div ref={messagesEndRef} className="h-1" />
+        
+        {/* 滚动到底部按钮 - 当用户不在底部时显示 */}
+        {!isScrollAtBottom && messages.length > 2 && (
+          <Button
+            size="sm"
+            variant="secondary"
+            className="fixed bottom-20 right-4 rounded-full shadow-md opacity-90 hover:opacity-100 z-10 transition-opacity duration-200"
+            onClick={() => scrollToBottom()}
+            aria-label="滚动到底部"
+          >
+            <ChevronDown size={16} className="mr-1" />
+            <span className="text-xs">新消息</span>
+          </Button>
+        )}
       </CardContent>
       
       {/* 输入区域 */}
-      <div className="p-4 border-t border-gray-200">
-        {error && (
-          <div className="mb-3 p-3 bg-red-50 text-red-700 rounded-lg text-sm border border-red-200">
-            <div className="font-medium">Error</div>
-            <div>{error}</div>
-          </div>
-        )}
+      <div className="p-4 bg-white dark:bg-gray-900 shadow-sm">
         <form onSubmit={handleSubmit} className="flex gap-2">
           <div className="flex-1 relative">
             <Input

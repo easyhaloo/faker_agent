@@ -9,7 +9,7 @@ from langgraph.graph import END, StateGraph
 from typing import TypedDict
 from langgraph.prebuilt import ToolNode
 
-from backend.core.llm import get_chat_model
+from backend.core.infrastructure.llm.chat_model import get_chat_model
 from backend.core.tools.registry import tool_registry
 from backend.core.utils.logging import get_logger
 from backend.core.utils.message_formatter import message_formatter
@@ -96,11 +96,8 @@ class AgentGraph:
                     # Convert to LangChain format
                     langchain_messages.append(message_formatter.to_langchain_format(msg))
             
-            # Call the LLM model
-            chat_result = await self.llm_model._agenerate(langchain_messages)
-            
-            # Get the generated message
-            ai_message = chat_result.generations[0].message
+            # Call the LLM model using public API
+            ai_message = await self.llm_model.ainvoke(langchain_messages)
             
             # Return a dict with the updated messages list
             return {"messages": messages + [ai_message]}

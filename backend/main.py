@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # Import modules to ensure they are loaded
 
-from backend.api.routes import router as api_router
+from backend.api.main_router import router as api_router
 from backend.config.settings import settings
 from backend.core.utils.logging import configure_root_logger, get_logger
 

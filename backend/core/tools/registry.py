@@ -8,7 +8,7 @@ import logging
 from typing import Any, Dict, List, Optional, Type, Union
 
 from backend.core.contracts.tools import ToolSpec
-from backend.core.tools.base import BaseTool, ToolMetadata
+from backend.core.tools.base import BaseTool
 from backend.core.utils.logging import get_logger
 
 # Configure logger
