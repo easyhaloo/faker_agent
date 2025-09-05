@@ -37,7 +37,7 @@ This document provides a clear mapping of modules in the Faker Agent backend, in
 | Module Path | Status | Last Modified | Notes |
 |-------------|--------|---------------|-------|
 | `backend/api/agent_routes.py` | ✅ Primary | Aug 31 16:14 | Enhanced agent API routes |
-| `backend/api/conversation_routes.py` | 🆕 New | Aug 31 17:03 | Conversation management |
+| `backend/api/integrated_agent_routes.py` | 🆕 New | Sep 5 17:30 | Integrated agent and conversation management |
 | `backend/api/routes.py` | ✅ Primary | Aug 31 17:04 | Main router |
 
 ## Protocol Modules
@@ -87,7 +87,7 @@ from backend.core.agent import Agent  # Transitional wrapper
 ```python
 # ✅ Use these imports
 from backend.api.agent_routes import router as agent_router
-from backend.api.conversation_routes import router as conversation_router
+from backend.api.integrated_agent_routes import router as integrated_agent_router
 from backend.api.routes import router as api_router
 ```
 
@@ -98,9 +98,9 @@ The following diagram illustrates the key dependencies between the primary modul
 ```
 API Layer
   ├── agent_routes.py ───────────┐
-  ├── conversation_routes.py     │
+  ├── integrated_agent_routes.py │
   └── routes.py                  ▼
-                          Agent (Transitional)
+                          ConversationAgent
                                   │
                                   ▼
                           FlowOrchestrator

@@ -14,7 +14,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Web
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, validator
 
-from backend.core.agent import Agent
+from backend.core.services.agent_service import AgentService
 from backend.core.assembler.llm_assembler import assembler
 from backend.core.filters.filter_manager import filter_manager
 from backend.core.graph.event_types import Event, EventType

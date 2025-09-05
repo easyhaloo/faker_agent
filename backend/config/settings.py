@@ -1,69 +1,41 @@
 """
-Application settings module.
+Settings module for the Faker Agent backend.
+
+This module defines configuration settings using Pydantic Settings,
+allowing configuration through environment variables with defaults.
 """
 import os
-from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Optional
 
+from pydantic_settings import BaseSettings
 from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
-# Base directory
-BASE_DIR = Path(__file__).resolve().parent.parent
-
-# Logs directory
-LOGS_DIR = BASE_DIR.parent / "logs"
 
 
 class Settings(BaseSettings):
     """Application settings."""
     
-    # Application settings
-    APP_NAME: str = "Faker Agent"
-    APP_VERSION: str = "0.1.0"
-    DEBUG: bool = True
-    
-    # Logging settings
-    LOG_LEVEL: str = "INFO"
-    LOG_FILE: str = str(LOGS_DIR / "application.log")
-    LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    
-    # API settings
-    API_PREFIX: str = "/api"
-    
-    # CORS settings
-    CORS_ORIGINS: List[str] = [
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:5174",
-        "http://0.0.0.0:5173",
-        "http://0.0.0.0:5174"
-    ]
+    # Server settings
+    HOST: str = Field(default="0.0.0.0", env="HOST")
+    PORT: int = Field(default=8000, env="PORT")
+    DEBUG: bool = Field(default=False, env="DEBUG")
+    LOG_LEVEL: str = Field(default="INFO", env="LOG_LEVEL")
+    LOG_FORMAT: str = Field(default="%(asctime)s - %(name)s - %(levelname)s - %(message)s", env="LOG_FORMAT")
     
     # LiteLLM settings
-    LITELLM_API_KEY: str = Field("", env="LITELLM_API_KEY")
-    GEMINI_API_KEY: str = Field("", env="GEMINI_API_KEY")
-    GITHUB_API_BASE: str = Field("", env="GITHUB_API_BASE")
-    GITHUB_API_KEY: str = Field("", env="GITHUB_API_KEY")
-    # Default to GitHub Models provider to avoid OpenAI Assistants v2 paths
-    LITELLM_MODEL: str = "github/gpt-4o-mini"  # Default model with provider prefix
-    LITELLM_BASE_URL: str = Field("", env="LITELLM_BASE_URL")  # Custom endpoint URL
-
-    LITELLM_TEMPERATURE: float = 0.7
-    LITELLM_MAX_TOKENS: int = 800
-    LITELLM_TIMEOUT: float = 60.0  # Request timeout in seconds
+    LITELLM_MODEL: str = Field(default="gpt-3.5-turbo", env="LITELLM_MODEL")
+    LITELLM_API_KEY: Optional[str] = Field(default=None, env="LITELLM_API_KEY")
+    LITELLM_BASE_URL: Optional[str] = Field(default=None, env="LITELLM_BASE_URL")
+    LITELLM_TEMPERATURE: float = Field(default=0.7, env="LITELLM_TEMPERATURE")
+    LITELLM_MAX_TOKENS: Optional[int] = Field(default=None, env="LITELLM_MAX_TOKENS")
+    LITELLM_TIMEOUT: float = Field(default=30.0, env="LITELLM_TIMEOUT")
     
-    # Weather API (placeholder for demo)
-    WEATHER_API_KEY: str = Field("", env="WEATHER_API_KEY")
-    WEATHER_API_URL: str = "https://api.openweathermap.org/data/2.5"
+    # Memory settings
+    MEMORY_CLEANUP_INTERVAL: int = Field(default=3600, env="MEMORY_CLEANUP_INTERVAL")  # 1 hour
     
-    # Model configuration
-    model_config = SettingsConfigDict(
-        env_file=str(BASE_DIR / ".env"), 
-        env_file_encoding="utf-8", 
-        case_sensitive=True
-    )
+    class Config:
+        """Pydantic config."""
+        env_file = ".env"
+        env_file_encoding = "utf-8"
 
 
 # Create settings instance

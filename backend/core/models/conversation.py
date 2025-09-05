@@ -11,6 +11,16 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, Field
 
 
+class ToolCall(BaseModel):
+    """Model representing a tool call made by the assistant."""
+    id: str = Field(..., description="Tool call identifier")
+    name: str = Field(..., description="Name of the tool being called")
+    arguments: Dict[str, Any] = Field(default_factory=dict, description="Arguments passed to the tool")
+    result: Optional[Any] = Field(None, description="Result of the tool call")
+    error: Optional[str] = Field(None, description="Error message if the tool call failed")
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
 class Message(BaseModel):
     """
     Message model representing a single message in a conversation.
@@ -19,6 +29,7 @@ class Message(BaseModel):
     conversation_id: UUID
     role: str = Field(..., description="Message role: 'user', 'assistant', 'system', or 'tool'")
     content: str = Field(..., description="Message content")
+    tool_calls: List[ToolCall] = Field(default_factory=list, description="Tool calls made in this message")
     created_at: datetime = Field(default_factory=datetime.now)
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Optional metadata for the message")
     
@@ -63,6 +74,7 @@ class MessageCreate(BaseModel):
     """
     role: str
     content: str
+    tool_calls: List[ToolCall] = Field(default_factory=list)
     metadata: Optional[Dict[str, Any]] = None
 
 

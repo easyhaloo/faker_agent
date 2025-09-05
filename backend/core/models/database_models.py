@@ -47,7 +47,7 @@ class ConversationDB(Base):
     title = Column(String(255), nullable=False)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-    metadata = Column(SQLiteJSON, nullable=True)
+    extra_data = Column(SQLiteJSON, nullable=True)
     
     # Relationships
     messages = relationship("MessageDB", back_populates="conversation", cascade="all, delete-orphan")
@@ -63,8 +63,9 @@ class MessageDB(Base):
     conversation_id = Column(UUID, ForeignKey("conversations.id"), nullable=False)
     role = Column(String(50), nullable=False)
     content = Column(Text, nullable=False)
+    tool_calls = Column(SQLiteJSON, nullable=True)
     created_at = Column(DateTime, default=datetime.now)
-    metadata = Column(SQLiteJSON, nullable=True)
+    extra_data = Column(SQLiteJSON, nullable=True)
 
     # Relationships
     conversation = relationship("ConversationDB", back_populates="messages")
@@ -85,7 +86,7 @@ class MemoryProfileDB(Base):
     source_msg_id = Column(UUID, nullable=True)
     created_at = Column(DateTime, default=datetime.now)
     expires_at = Column(DateTime, nullable=True)
-    metadata = Column(SQLiteJSON, nullable=True)
+    extra_data = Column(SQLiteJSON, nullable=True)
 
 
 class MemoryEpisodeDB(Base):
@@ -101,7 +102,7 @@ class MemoryEpisodeDB(Base):
     source_msg_id = Column(UUID, nullable=True)
     created_at = Column(DateTime, default=datetime.now)
     expires_at = Column(DateTime, nullable=True)
-    metadata = Column(SQLiteJSON, nullable=True)
+    extra_data = Column(SQLiteJSON, nullable=True)
 
     # Relationships
     conversation = relationship("ConversationDB", back_populates="episode_memories")
@@ -117,7 +118,7 @@ class ConversationSummaryDB(Base):
     range_start_msg_id = Column(UUID, nullable=False)
     range_end_msg_id = Column(UUID, nullable=False)
     created_at = Column(DateTime, default=datetime.now)
-    metadata = Column(SQLiteJSON, nullable=True)
+    extra_data = Column(SQLiteJSON, nullable=True)
 
     # Relationships
     conversation = relationship("ConversationDB", back_populates="summaries")

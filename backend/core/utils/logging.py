@@ -18,6 +18,18 @@ from typing import Dict, List, Optional, Union
 from backend.config.settings import settings
 
 
+def setup_logging():
+    """Set up logging configuration."""
+    # Configure root logger
+    logging.basicConfig(
+        level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
+        format=settings.LOG_FORMAT,
+        handlers=[
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
+
+
 class ColoredFormatter(logging.Formatter):
     """Logging formatter with colored output for console."""
     

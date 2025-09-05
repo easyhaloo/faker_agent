@@ -1,16 +1,19 @@
 """
-Memory service for the Faker Agent.
+Enhanced memory service for the Faker Agent with optimized conversation memory management.
 
-This module provides services for managing different types of memory:
-- Short-term (working memory)
-- Session-level episodic memory
-- Global profile memory
+This module provides services for managing different types of memory with improved
+token efficiency and context retention:
+- Short-term (working memory) with sliding window optimization
+- Session-level episodic memory with semantic retrieval
+- Global profile memory with caching
+- Hierarchical conversation summaries
+- Memory compression for efficient storage
 
 It includes CRUD operations for memory entities and functions for
 memory extraction, retrieval, and integration with the agent system.
 """
 from datetime import datetime
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Dict, Any, Union, Tuple
 from uuid import UUID
 
 from backend.core.models.memory import (
@@ -18,12 +21,18 @@ from backend.core.models.memory import (
     MemoryProfileCreate, MemoryEpisodeCreate, MemorySettings,
     MemoryType, MemoryScope
 )
-from backend.core.models.conversation import Message, Conversation
+from backend.core.models.conversation import Message, Conversation, ToolCall
 
 
-class MemoryService:
-    """Service for managing agent memory operations."""
+class EnhancedMemoryService:
+    """Enhanced service for managing agent memory operations with optimized strategies."""
     
+    def __init__(self):
+        """Initialize the enhanced memory service."""
+        # In a production implementation, these would be initialized with actual models
+        self.embedding_model = None  # SentenceTransformer or similar embedding model
+        self.vector_db = None  # Vector database connection (Pinecone, Weaviate, etc.)
+        
     async def create_profile_memory(self, memory: MemoryProfileCreate) -> MemoryProfile:
         """
         Create a new profile memory entry.
@@ -49,7 +58,7 @@ class MemoryService:
                 tags=memory.tags,
                 source_msg_id=memory.source_msg_id,
                 expires_at=memory.expires_at,
-                metadata=memory.metadata
+                extra_data=memory.metadata
             )
             db.add(db_memory)
             db.commit()
@@ -217,7 +226,7 @@ class MemoryService:
                 tags=memory.tags,
                 source_msg_id=memory.source_msg_id,
                 expires_at=memory.expires_at,
-                metadata=memory.metadata
+                extra_data=memory.metadata
             )
             db.add(db_memory)
             db.commit()
@@ -376,7 +385,7 @@ class MemoryService:
                 content=content,
                 range_start_msg_id=range_start_msg_id,
                 range_end_msg_id=range_end_msg_id,
-                metadata=metadata
+                extra_data=metadata
             )
             db.add(db_summary)
             db.commit()
@@ -420,6 +429,33 @@ class MemoryService:
                 
             return ConversationSummary.from_orm(db_summary)
     
+    async def get_hierarchical_summaries(self, conversation_id: UUID, max_levels: int = 3) -> List[ConversationSummary]:
+        """
+        Get hierarchical conversation summaries for very long conversations.
+        
+        Args:
+            conversation_id: ID of the conversation
+            max_levels: Maximum number of summary levels to retrieve
+            
+        Returns:
+            List of conversation summaries in hierarchical order
+        """
+        from backend.core.infrastructure.database import db_session
+        from backend.core.models.database_models import ConversationSummaryDB
+        
+        summaries = []
+        with db_session() as db:
+            # Get summaries ordered by creation time (newest first)
+            db_summaries = db.query(ConversationSummaryDB)\
+                .filter(ConversationSummaryDB.conversation_id == conversation_id)\
+                .order_by(ConversationSummaryDB.created_at.desc())\
+                .limit(max_levels)\
+                .all()
+            
+            summaries = [ConversationSummary.from_orm(s) for s in db_summaries]
+            
+        return summaries
+    
     async def extract_facts_from_message(self, message: Message) -> List[Dict[str, Any]]:
         """
         Extract facts and other memory-worthy information from a message.
@@ -442,21 +478,11 @@ class MemoryService:
         # Use LLM to extract memory items
         chat_model = get_chat_model()
         
+        from backend.core.prompts.memory_prompts import MEMORY_EXTRACTION_PROMPT
+        
         # Construct prompt for extraction
         prompt = [
-            {"role": "system", "content": """
-            You are a memory extraction assistant. Your task is to identify facts, goals, constraints, 
-            preferences, terminology, and decisions from user messages. Extract only important 
-            information that might be useful to remember for future context.
-            
-            For each memory item, provide:
-            1. type: one of [fact, goal, constraint, preference, term, decision]
-            2. content: the actual information
-            3. importance: a score from 1-5 (5 being most important)
-            
-            Return your analysis as a JSON list of memory items, or an empty list if nothing notable is found.
-            Only extract clear and explicit information, not assumptions or interpretations.
-            """}, 
+            {"role": "system", "content": MEMORY_EXTRACTION_PROMPT}, 
             {"role": "user", "content": f"Extract memory items from this message:\n\n{message.content}"}
         ]
         
@@ -540,18 +566,10 @@ class MemoryService:
             role = "User" if msg.role == "user" else "Assistant"
             conversation_content += f"{role}: {msg.content}\n\n"
             
-        # Construct prompt for summarization
-        system_prompt = """
-        You are a conversation summarizer. Your task is to create a concise, informative summary 
-        of a conversation between a user and an assistant. Focus on capturing:
-        - Key points discussed
-        - Important facts or information shared
-        - Questions asked and their answers
-        - Decisions made or actions agreed upon
+        from backend.core.prompts.memory_prompts import MEMORY_SUMMARIZATION_PROMPT
         
-        Keep the summary concise but comprehensive. If there's a previous summary provided, 
-        incorporate it with the new content to create a continuous narrative.
-        """
+        # Construct prompt for summarization
+        system_prompt = MEMORY_SUMMARIZATION_PROMPT
         
         user_prompt = """
         Please summarize the following conversation:
@@ -597,6 +615,123 @@ class MemoryService:
             
             return " ".join(summary_parts)
     
+    async def compress_memory_content(self, content: str, compression_ratio: float = 0.5) -> str:
+        """
+        Compress memory content to reduce token usage while preserving key information.
+        
+        Args:
+            content: The content to compress
+            compression_ratio: Target ratio of compressed to original length (0.0-1.0)
+            
+        Returns:
+            Compressed content
+        """
+        from backend.core.infrastructure.llm.chat_model import get_chat_model
+        
+        # Use LLM to compress content
+        chat_model = get_chat_model()
+        
+        from backend.core.prompts.memory_prompts import MEMORY_COMPRESSION_PROMPT
+        
+        # Construct prompt for compression
+        prompt = [
+            {"role": "system", "content": MEMORY_COMPRESSION_PROMPT.format(compression_ratio=compression_ratio * 100)}, 
+            {"role": "user", "content": f"Compress this content:\n\n{content}"}
+        ]
+        
+        try:
+            response = await chat_model.complete(prompt)
+            return response.strip()
+        except Exception as e:
+            # Log the error but return original content if compression fails
+            from backend.core.utils.logging import get_logger
+            logger = get_logger(__name__)
+            logger.error(f"Error compressing memory content: {e}")
+            return content
+    
+    async def get_sliding_window_context(
+        self, 
+        conversation_id: UUID, 
+        max_messages: int = 10
+    ) -> List[Message]:
+        """
+        Get recent messages using a sliding window approach.
+        
+        Args:
+            conversation_id: ID of the conversation
+            max_messages: Maximum number of recent messages to retrieve
+            
+        Returns:
+            List of recent messages
+        """
+        from backend.core.infrastructure.database import db_session
+        from backend.core.models.database_models import MessageDB
+        from sqlalchemy import desc
+        
+        with db_session() as db:
+            # Get recent messages ordered by creation time (newest first)
+            db_messages = db.query(MessageDB)\
+                .filter(MessageDB.conversation_id == conversation_id)\
+                .order_by(desc(MessageDB.created_at))\
+                .limit(max_messages)\
+                .all()
+            
+            # Convert to Pydantic models and reverse order (oldest first)
+            messages = [Message.from_orm(m) for m in reversed(db_messages)]
+            
+        return messages
+    
+    async def get_semantic_memories(
+        self, 
+        conversation_id: UUID, 
+        query: str, 
+        max_memories: int = 5
+    ) -> List[MemoryEpisode]:
+        """
+        Get semantically relevant memories using vector similarity search.
+        
+        Args:
+            conversation_id: ID of the conversation
+            query: Query text to find relevant memories
+            max_memories: Maximum number of memories to retrieve
+            
+        Returns:
+            List of semantically relevant memories
+        """
+        # In a production implementation, this would use a vector database
+        # For now, we'll use a simplified approach with keyword matching
+        
+        # Get all episode memories for this conversation
+        all_memories = await self.get_episode_memories(conversation_id=conversation_id)
+        
+        # Score memories based on relevance to query
+        scored_memories = []
+        query_words = set(query.lower().split())
+        
+        for memory in all_memories:
+            # Simple keyword matching score
+            memory_words = set(memory.content.lower().split())
+            common_words = query_words.intersection(memory_words)
+            score = len(common_words) / len(query_words) if query_words else 0
+            
+            # Boost score for recent memories
+            time_diff = (datetime.now() - memory.created_at).total_seconds()
+            recency_boost = max(0.1, 1.0 - (time_diff / (24 * 3600)))  # Boost for last 24 hours
+            
+            # Boost score for important memory types
+            importance_boost = 1.0
+            if memory.memory_type in [MemoryType.GOAL, MemoryType.DECISION, MemoryType.CONSTRAINT]:
+                importance_boost = 1.5
+            
+            final_score = score * recency_boost * importance_boost
+            scored_memories.append((final_score, memory))
+        
+        # Sort by score and return top memories
+        scored_memories.sort(key=lambda x: x[0], reverse=True)
+        top_memories = [memory for score, memory in scored_memories[:max_memories]]
+        
+        return top_memories
+    
     async def get_memory_for_prompt(
         self,
         conversation_id: UUID,
@@ -604,7 +739,7 @@ class MemoryService:
         settings: MemorySettings
     ) -> Dict[str, Any]:
         """
-        Retrieve relevant memory items to include in the prompt.
+        Retrieve relevant memory items to include in the prompt with optimized strategies.
         
         Args:
             conversation_id: ID of the conversation
@@ -617,12 +752,21 @@ class MemoryService:
         result = {
             "profile_memory": [],
             "episode_memory": [],
-            "summary": None
+            "summary": None,
+            "recent_context": [],
+            "semantic_memories": []
         }
         
         # Only proceed if memory is enabled
         if not (settings.use_global_memory or settings.use_project_memory or settings.use_session_memory):
             return result
+        
+        # Get recent context using sliding window
+        if settings.use_session_memory:
+            result["recent_context"] = await self.get_sliding_window_context(
+                conversation_id=conversation_id,
+                max_messages=settings.max_context_messages
+            )
         
         # Get profile memories if enabled
         if settings.use_global_memory:
@@ -640,6 +784,13 @@ class MemoryService:
         if settings.use_session_memory:
             episode_memories = await self.get_episode_memories(conversation_id=conversation_id)
             result["episode_memory"] = episode_memories
+            
+            # Get semantically relevant memories
+            result["semantic_memories"] = await self.get_semantic_memories(
+                conversation_id=conversation_id,
+                query=user_message,
+                max_memories=5
+            )
             
             # Get the latest summary if rolling summaries are enabled
             if settings.enable_rolling_summary:
@@ -695,7 +846,6 @@ class MemoryService:
             )
             
         return audit
-
 
     async def get_memory_settings(
         self,
@@ -770,11 +920,11 @@ class MemoryService:
                     enable_memory_writing=settings.enable_memory_writing,
                     enable_rolling_summary=settings.enable_rolling_summary,
                     max_context_messages=settings.max_context_messages,
-                    summary_token_threshold=settings.summary_token_threshold
+                    summary_token_threshold=settings.summary_token_threshold,
+                    extra_data=None
                 )
                 db.add(db_settings)
-            else:
-                # Update existing settings
+            # Update existing settings
                 db_settings.use_global_memory = settings.use_global_memory
                 db_settings.use_project_memory = settings.use_project_memory
                 db_settings.project_id = settings.project_id
@@ -783,6 +933,7 @@ class MemoryService:
                 db_settings.enable_rolling_summary = settings.enable_rolling_summary
                 db_settings.max_context_messages = settings.max_context_messages
                 db_settings.summary_token_threshold = settings.summary_token_threshold
+                db_settings.extra_data = None
                 
             db.commit()
             db.refresh(db_settings)
@@ -851,4 +1002,4 @@ class MemoryService:
 
 
 # Singleton instance
-memory_service = MemoryService()
+enhanced_memory_service = EnhancedMemoryService()

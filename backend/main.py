@@ -1,94 +1,93 @@
 """
-Main entry point for the Faker Agent backend.
+Main application entry point for the Faker Agent backend.
+
+This module initializes the FastAPI application, sets up middleware,
+configures routes, and starts background tasks.
 """
+import asyncio
 import logging
-from typing import Dict
+import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# Import modules to ensure they are loaded
-
-from backend.api.main_router import router as api_router
+from backend.api.main_router import router
 from backend.config.settings import settings
-from backend.core.utils.logging import configure_root_logger, get_logger
+from backend.core.infrastructure.database import engine, Base
+from backend.core.utils.background_tasks import background_task_manager
+from backend.core.utils.logging import setup_logging
 
-# Configure root logger
-configure_root_logger(
-    level=settings.LOG_LEVEL,
-    use_colors=True,
-    log_to_file=True,
-    file_name="application.log",
-    rotation_type="size",  # Use size-based rotation
-    max_bytes=10 * 1024 * 1024,  # 10MB
-    backup_count=5
-)
+# Configure logging
+setup_logging()
 
-# Get module-specific logger
-logger = get_logger(__name__)
+# Configure logger
+logger = logging.getLogger(__name__)
 
-# Create FastAPI app
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Application lifespan manager.
+    
+    Handles startup and shutdown events including database initialization
+    and background task management.
+    """
+    # Startup
+    logger.info("Starting Faker Agent backend")
+    
+    # Create database tables
+    logger.info("Creating database tables")
+    Base.metadata.create_all(bind=engine)
+    
+    # Start background tasks
+    logger.info("Starting background tasks")
+    await background_task_manager.start_cleanup_task(settings.MEMORY_CLEANUP_INTERVAL)
+    
+    yield
+    
+    # Shutdown
+    logger.info("Shutting down Faker Agent backend")
+    
+    # Stop background tasks
+    logger.info("Stopping background tasks")
+    await background_task_manager.stop_cleanup_task()
+
+
+# Create FastAPI app with lifespan manager
 app = FastAPI(
     title="Faker Agent API",
-    description="API for the Faker Agent intelligent system",
-    version=settings.APP_VERSION,
+    description="API for the Faker Agent multi-session conversation system",
+    version="0.1.0",
+    lifespan=lifespan
 )
 
-# Configure CORS
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=["*"],  # In production, specify exact origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include API routes
-app.include_router(api_router, prefix=settings.API_PREFIX)
+# Include routes
+app.include_router(router, prefix="/api/v1")
 
-
-# Health check endpoint
+# Root endpoint
 @app.get("/")
-async def root() -> Dict[str, str]:
-    """Health check endpoint."""
-    return {"status": "online", "version": settings.APP_VERSION}
-
-
-# Startup event
-@app.on_event("startup")
-async def startup_event():
-    """Runs on application startup."""
-    logger.info(f"Starting Faker Agent API v{settings.APP_VERSION}")
-    
-    # Initialize registries and resolve circular dependencies
-    from backend.core.filters.filter_manager import filter_manager
-    from backend.core.protocol.filtered_registry import filtered_protocol_registry
-    from backend.core.tools.filtered_registry import filtered_registry
-    
-    # Set up the registries with their dependencies
-    filtered_protocol_registry.set_filter_manager(filter_manager)
-    if filter_manager.registry is None:
-        filter_manager.registry = filtered_registry
-    
-    # Register tools
-    from backend.core.tools.registry import tool_registry
-    from backend.core.tools import CalculatorTool, WebSearchTool, WeatherTool
-    
-    # Register available tools
-    tool_registry.register_tool(CalculatorTool())
-    tool_registry.register_tool(WebSearchTool())
-    tool_registry.register_tool(WeatherTool())
-        
-    logger.info("Initialized filter manager, registries and tools")
-
-
-# Shutdown event
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Runs on application shutdown."""
-    logger.info("Shutting down Faker Agent API")
+async def root():
+    """Root endpoint for health check."""
+    return {"message": "Faker Agent backend is running"}
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=True)
+    
+    uvicorn.run(
+        "main:app",
+        host=settings.HOST,
+        port=settings.PORT,
+        reload=settings.DEBUG,
+        log_level="info"
+    )

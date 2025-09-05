@@ -8,7 +8,7 @@ from uuid import uuid4
 
 import pytest
 import httpx
-from backend.api.routes import tasks
+from backend.api.agent_routes import tasks
 from backend.core.memory.redis_memory import RedisMemory
 from backend.core.tools.calculator import CalculatorTool
 from backend.core.tools.web_search import WebSearchTool

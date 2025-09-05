@@ -75,11 +75,15 @@ After analyzing the codebase, we identified and resolved the following redundanc
 - `FlowOrchestrator` is the primary implementation used by newer code.
 - `Agent` class provides a simplified interface for backwards compatibility.
 
-### 3. API Routes
+3. **API Routes**
 
 **PRIMARY IMPLEMENTATION (Most Recent)**:
 - `backend/api/agent_routes.py` - Enhanced API routes with protocol support.
-- `backend/api/conversation_routes.py` - New conversation management functionality.
+- `backend/api/integrated_agent_routes.py` - Integrated agent and conversation management functionality.
+
+**DEPRECATED IMPLEMENTATION**:
+- `backend/api/conversation_routes.py` - Old conversation management functionality (DEPRECATED)
+- `backend/api/enhanced_conversation_routes.py` - Enhanced conversation management functionality (DEPRECATED)
 
 **CONSOLIDATED ROUTING**:
 - `backend/api/routes.py` - Main router that includes both sub-routers and defines basic routes.
@@ -118,13 +122,13 @@ The API layer has been organized as follows:
 ```
 api/
 ├── agent_routes.py        # Enhanced API routes with protocol support
-├── conversation_routes.py # Conversation management functionality
+├── integrated_agent_routes.py # Integrated agent and conversation management
 └── routes.py              # Main router that includes sub-routers
 ```
 
 Each router has specific responsibilities:
 1. **agent_routes.py** - Handles direct agent interactions and streaming
-2. **conversation_routes.py** - Manages conversation state and history
+2. **integrated_agent_routes.py** - Manages integrated agent and conversation functionality
 3. **routes.py** - Provides system-level endpoints and task management
 
 ## Next Steps for Refactoring

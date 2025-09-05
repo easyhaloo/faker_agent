@@ -8,7 +8,7 @@ from uuid import uuid4
 
 import pytest
 import httpx
-from backend.api.routes import tasks
+from backend.api.agent_routes import tasks
 
 
 @pytest.mark.asyncio
