@@ -74,10 +74,10 @@ kill_existing_services() {
 # 后端服务启动函数
 start_backend() {
     echo "🔧 启动后端服务..."
-    cd backend
-    uvicorn main:app --reload &
+    # Add the project root to PYTHONPATH so backend module can be found
+    export PYTHONPATH="${PYTHONPATH}:$(pwd)"
+    python -m uvicorn backend.main:app --reload --app-dir . &
     BACKEND_PID=$!
-    cd ..
     
     # 验证服务是否成功启动
     echo "   等待后端服务启动..."
@@ -110,9 +110,12 @@ start_backend() {
 
 # 前端服务启动函数
 start_frontend() {
-    echo "🌐 启动前端服务..."
+    echo "🌐 启动前端服务（带热重载）..."
     cd frontend
-    npm run dev &
+    
+    # 使用优化的热重载配置启动
+    echo "   配置热重载优化..."
+    npm run dev -- --host 0.0.0.0 --port $FRONTEND_PORT --strictPort --clearScreen false &
     FRONTEND_PID=$!
     cd ..
     
@@ -126,6 +129,8 @@ start_frontend() {
         if curl -s http://localhost:$FRONTEND_PORT/ > /dev/null 2>&1; then
             echo "✅ 前端服务已成功启动 (PID: $FRONTEND_PID)"
             echo "   前端地址: http://localhost:$FRONTEND_PORT"
+            echo "   🔄 热重载已启用 - 文件修改将自动刷新浏览器"
+            echo "   📁 监控目录: frontend/src/"
             return 0
         fi
         

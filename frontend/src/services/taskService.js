@@ -1,6 +1,6 @@
-"""
-Frontend service for real-time task status updates.
-"""
+/**
+ * Frontend service for real-time task status updates.
+ */
 import axios from 'axios';
 import { apiClient as api } from './apiClient';
 

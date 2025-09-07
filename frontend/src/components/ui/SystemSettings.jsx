@@ -14,7 +14,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
  * 系统设置组件
  * 根据要求重新设计为模态窗口风格，类似 ChatGPT 设置界面
  */
-const SystemSettings = () => {
+const SystemSettings = ({ isCollapsed = false }) => {
   const { t, language, changeLanguage } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const displaySettings = useDisplayStore((state) => state.displaySettings);
@@ -37,76 +37,106 @@ const SystemSettings = () => {
   };
 
   return (
-    <div>
-      {/* Settings Entry Button - 文字和图标一起显示 */}
+    <div className="w-full">
+      {/* Settings Entry Button - 文字和图标一起显示或仅图标（折叠态） */}
       <button
         onClick={() => setIsOpen(true)}
-        className="w-full py-3 px-4 text-left hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors flex items-center"
+        className={cn(
+          isCollapsed
+            ? "p-0 h-12 w-12 mx-auto flex items-center justify-center rounded-none hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors border-0"
+            : "w-full py-4 px-4 text-left rounded-none transition-colors flex items-center hover:bg-gray-100 dark:hover:bg-gray-800 border-0"
+        )}
         aria-label={t('settings.systemSettings')}
+        title={t('settings.systemSettings')}
+        style={{ marginBottom: 0, marginTop: 0 }}
       >
-        <Settings size={20} className="text-gray-600 dark:text-gray-300 mr-3" />
-        <span className="text-gray-700 dark:text-gray-300">{t('settings.systemSettings')}</span>
+        {isCollapsed ? (
+          <Settings className="h-4 w-4 text-gray-600 dark:text-gray-300" />
+        ) : (
+          <>
+            <Settings className="h-4 w-4 text-gray-600 dark:text-gray-300 mr-3" />
+            <span className="text-gray-700 dark:text-gray-300">{t('settings.systemSettings')}</span>
+          </>
+        )}
       </button>
       
-      {/* Settings Panel - 集成在左侧对话列表下方 */}
+      {/* Settings Panel - 全屏居中显示 */}
       {isOpen && (
         <>
-          {/* Overlay */}
-          <div 
-            className="fixed inset-0 bg-black/50 z-40"
+          {/* Overlay backdrop */}
+          <motion.div 
+            className="fixed inset-0 bg-black/30 z-50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             onClick={() => setIsOpen(false)}
           />
           
-          {/* Modal dialog */}
+          {/* Modal dialog - positioned in the center of EnhancedChatPanel */}
           <motion.div 
-            className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 w-[480px] max-h-[85vh] bg-white dark:bg-gray-900 rounded-2xl shadow-lg overflow-y-auto"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
+            className="fixed inset-0 z-50 flex items-center justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
           >
-          <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setIsOpen(false)} />
+            
+            {/* Modal Content */}
+            <motion.div 
+              className="relative w-[400px] max-h-[80vh] bg-gray-50 dark:bg-gray-900 rounded-2xl shadow-2xl overflow-y-auto flex flex-col"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            >
+              <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-white dark:bg-gray-800">
             <h2 className="font-medium text-lg">{t('settings.systemSettings')}</h2>
             <button 
               onClick={() => setIsOpen(false)}
-              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
               <X size={18} />
             </button>
           </div>
           
-          <div className="p-4">
+          <div className="p-4 md:p-6 flex-1">
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">{t('settings.manageSystemSettings')}</p>
         
-        <Tabs defaultValue="appearance" className="mt-6">
-          <TabsList className="mb-6">
-            <TabsTrigger value="appearance" className="flex items-center gap-2">
-              <MonitorSmartphone size={16} />
-              {t('settings.appearance')}
-            </TabsTrigger>
-            <TabsTrigger value="display" className="flex items-center gap-2">
-              <Monitor size={16} />
-              {t('settings.displaySettings')}
-            </TabsTrigger>
-            <TabsTrigger value="agent" className="flex items-center gap-2">
-              <Bot size={16} />
-              {t('settings.agentCommunication')}
-            </TabsTrigger>
-            <TabsTrigger value="system" className="flex items-center gap-2">
-              <Cpu size={16} />
-              {t('settings.systemInfo')}
-            </TabsTrigger>
-          </TabsList>
-          
-          {/* 外观设置 */}
-          <TabsContent value="appearance" className="space-y-6">
-            <div>
-              <h3 className="font-semibold text-lg text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
-                <Palette size={18} />
-                {t('settings.theme')}
-              </h3>
+            <Tabs defaultValue="appearance" className="mt-6">
+              <TabsList className="mb-6 grid grid-cols-2 md:grid-cols-4 gap-2">
+                <TabsTrigger value="appearance" className="flex items-center gap-2 justify-center">
+                  <MonitorSmartphone size={16} />
+                  <span className="hidden md:inline">{t('settings.appearance')}</span>
+                  <span className="md:hidden">{t('settings.appearance')}</span>
+                </TabsTrigger>
+                <TabsTrigger value="display" className="flex items-center gap-2 justify-center">
+                  <Monitor size={16} />
+                  <span className="hidden md:inline">{t('settings.displaySettings')}</span>
+                  <span className="md:hidden">{t('settings.display')}</span>
+                </TabsTrigger>
+                <TabsTrigger value="agent" className="flex items-center gap-2 justify-center">
+                  <Bot size={16} />
+                  <span className="hidden md:inline">{t('settings.agentCommunication')}</span>
+                  <span className="md:hidden">{t('settings.agent')}</span>
+                </TabsTrigger>
+                <TabsTrigger value="system" className="flex items-center gap-2 justify-center">
+                  <Cpu size={16} />
+                  <span className="hidden md:inline">{t('settings.systemInfo')}</span>
+                  <span className="md:hidden">{t('settings.system')}</span>
+                </TabsTrigger>
+              </TabsList>
               
-              <div className="grid grid-cols-3 gap-3">
+              {/* 外观设置 */}
+              <TabsContent value="appearance" className="space-y-6">
+                <div>
+                  <h3 className="font-semibold text-lg text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
+                    <Palette className="h-5 w-5" />
+                    {t('settings.appearance')}
+                  </h3>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {[
                   { value: 'light', label: t('settings.light'), icon: Sun },
                   { value: 'dark', label: t('settings.dark'), icon: Moon },
@@ -136,7 +166,7 @@ const SystemSettings = () => {
                 {t('settings.language')}
               </h3>
               
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[
                   { value: LANGUAGES.EN, label: 'English' },
                   { value: LANGUAGES.ZH, label: '中文' }
@@ -165,7 +195,7 @@ const SystemSettings = () => {
                 {t('settings.fontSize')}
               </h3>
               
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {['small', 'medium', 'large'].map((size) => (
                   <button
                     key={size}
@@ -187,7 +217,7 @@ const SystemSettings = () => {
               <h3 className="font-semibold text-lg text-gray-800 dark:text-gray-200 mb-4">
                 {t('settings.layoutMode')}
               </h3>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {['comfortable', 'compact'].map((layout) => (
                   <button
                     key={layout}
@@ -253,7 +283,7 @@ const SystemSettings = () => {
                   <Network size={18} />
                   {t('settings.communicationProtocol')}
                 </h3>
-                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
                   <ProtocolSelector />
                 </div>
               </div>
@@ -263,7 +293,7 @@ const SystemSettings = () => {
                   <Tag size={18} />
                   {t('settings.toolFiltering')}
                 </h3>
-                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
                   <ToolTagSelector />
                 </div>
               </div>
@@ -272,7 +302,7 @@ const SystemSettings = () => {
           
           {/* 系统信息 */}
           <TabsContent value="system">
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 space-y-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 space-y-4 border border-gray-200 dark:border-gray-700">
               <div className="flex justify-between items-center pb-3 border-b border-gray-200 dark:border-gray-700">
                 <span className="text-gray-600 dark:text-gray-300">{t('settings.version')}</span>
                 <span className="font-medium">v1.0.0</span>
@@ -302,6 +332,7 @@ const SystemSettings = () => {
         </Tabs>
           </div>
         </motion.div>
+      </motion.div>
         </>
       )}
     </div>

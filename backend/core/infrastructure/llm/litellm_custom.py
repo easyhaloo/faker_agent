@@ -69,8 +69,14 @@ class CustomChatLiteLLM(BaseChatModel):
         if self._max_tokens:
             self._model_kwargs["max_tokens"] = self._max_tokens
         
-        # Log initialization (without sensitive info)
-        logger.info(f"Initialized CustomChatLiteLLM with model={self._model_name}")
+        # Use elegant logging for initialization
+        from backend.core.utils.logging import log_initialization
+        log_initialization(
+            "CustomChatLiteLLM",
+            f"model={self._model_name}",
+            temperature=self._temperature,
+            max_tokens=self._max_tokens
+        )
     
     def _convert_message_to_litellm(self, message: BaseMessage) -> Dict[str, str]:
         """

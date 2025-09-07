@@ -20,7 +20,12 @@ export const en = {
     messages: "messages",
     search: "Search",
     searchConversations: "Search conversations",
-    noSearchResults: "No search results"
+    noSearchResults: "No search results",
+    export: "Export",
+    error: "Error",
+    sendShortcut: "Send Shortcut",
+    sync: "Sync",
+    stream: "Stream"
   },
   conversation: {
     title: "Conversations",
@@ -70,7 +75,8 @@ export const en = {
     cache: "Cache",
     cleared: "Cleared",
     restoreDefaults: "Restore Defaults",
-    language: "Language"
+    language: "Language",
+    manageSystemSettings: "System Settings",
   },
   search: {
     conversationSearch: "Conversation Search",

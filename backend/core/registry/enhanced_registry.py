@@ -26,8 +26,11 @@ class FilteredToolRegistry(ToolRegistry):
     def __init__(self):
         """Initialize the filtered tool registry."""
         super().__init__()
-        self._default_filter_strategy = ThresholdToolFilter(max_tools=5)
-        logger.info("Initialized FilteredToolRegistry with default filter strategy")
+        self.filter_strategy = filter_strategy or ThresholdToolFilter()
+        
+        # Use elegant logging for initialization
+        from backend.core.utils.logging import log_initialization
+        log_initialization("FilteredToolRegistry", "with filter strategy support")
     
     def filter_tools(
         self, 

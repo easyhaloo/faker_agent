@@ -29,7 +29,16 @@ class ConversationAgent:
         self.agent_service = AgentService()
         self.conversation_service = conversation_service
         self.memory_service = enhanced_memory_service
-        logger.info("Initialized ConversationAgent with integrated services")
+        
+        # Use elegant logging for initialization
+        from backend.core.utils.logging import log_initialization
+        log_initialization(
+            "ConversationAgent",
+            "with integrated services",
+            agent_service=True,
+            conversation_service=True,
+            memory_service=True
+        )
     
     async def create_conversation(self, title: str = "New Conversation", metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
@@ -353,5 +362,5 @@ class ConversationAgent:
             }
 
 
-# Singleton instance
+# Global conversation agent instance
 conversation_agent = ConversationAgent()

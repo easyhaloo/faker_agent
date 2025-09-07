@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useConversationStore } from '../../store/conversationStore';
 import ConversationDrawer from './ConversationDrawer';
-import ChatPanel from './ChatPanel';
+import EnhancedChatPanel from './EnhancedChatPanel';
 import { Button } from '../ui/button';
-import { MessageSquarePlus, Menu, ChevronLeft, ChevronRight, Settings, User, Download, Trash2, Edit3, X, Check, MoreVertical } from 'lucide-react';
+import { MessageSquarePlus, Menu, ChevronLeft, ChevronRight, Settings, User, Download, Trash2, Edit3, X, Check, MoreVertical, Loader2 } from 'lucide-react';
 import { useI18n } from '../../i18n/index.jsx';
 // 移除主题切换按钮导入
 import {
@@ -36,6 +36,8 @@ const ConversationManager = () => {
     updateConversationTitle,
     deleteConversation
   } = useConversationStore();
+  
+  const [isExporting, setIsExporting] = useState(false);
   
   // Handle drawer toggle
   const toggleDrawer = () => {
@@ -95,15 +97,47 @@ const ConversationManager = () => {
     }
   };
   
+  // Export conversation
+  const handleExportConversation = async (format = 'json') => {
+    if (!currentConversationId) return;
+    
+    setIsExporting(true);
+    try {
+      const result = await conversationService.exportConversation(currentConversationId, format);
+      const { content, filename, content_type } = result.data;
+      
+      // Create blob and download
+      const blob = new Blob([typeof content === 'object' ? JSON.stringify(content, null, 2) : content], {
+        type: content_type
+      });
+      
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      console.log(`Conversation exported successfully as ${filename}`);
+    } catch (error) {
+      console.error('Error exporting conversation:', error);
+      alert(t('common.error') || 'Failed to export conversation');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+  
   // Get current conversation
   const currentConversation = conversations.find(
     c => c.id === currentConversationId
   );
   
   return (
-    <div className="flex h-full relative overflow-hidden pb-12">
+    <div className="flex h-full relative overflow-hidden">
       {/* Bottom account area */}
-      <div className="absolute bottom-0 left-0 right-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2 flex justify-end items-center z-10 md:px-4">
+      {/* <div className="absolute bottom-0 left-0 right-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2 flex justify-end items-center z-10 md:px-4">
         <Button
           variant="ghost"
           size="sm"
@@ -112,7 +146,7 @@ const ConversationManager = () => {
         >
           <User size={18} />
         </Button>
-      </div>
+      </div> */}
       {/* Mobile Drawer Toggle */}
       <Button
         variant="ghost"
@@ -208,9 +242,39 @@ const ConversationManager = () => {
                     <DropdownMenuContent align="start" className="w-[160px]">
                       <DropdownMenuItem
                         className="cursor-pointer flex items-center text-gray-700 dark:text-gray-300"
+                        onClick={() => handleExportConversation('json')}
+                        disabled={isExporting}
                       >
-                        <Download className="mr-2 h-4 w-4 flex-shrink-0" />
-                        <span>{t('common.export') || '导出'}</span>
+                        {isExporting ? (
+                          <Loader2 className="mr-2 h-4 w-4 flex-shrink-0 animate-spin" />
+                        ) : (
+                          <Download className="mr-2 h-4 w-4 flex-shrink-0" />
+                        )}
+                        <span>{t('common.export')} JSON</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="cursor-pointer flex items-center text-gray-700 dark:text-gray-300"
+                        onClick={() => handleExportConversation('txt')}
+                        disabled={isExporting}
+                      >
+                        {isExporting ? (
+                          <Loader2 className="mr-2 h-4 w-4 flex-shrink-0 animate-spin" />
+                        ) : (
+                          <Download className="mr-2 h-4 w-4 flex-shrink-0" />
+                        )}
+                        <span>{t('common.export')} TXT</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="cursor-pointer flex items-center text-gray-700 dark:text-gray-300"
+                        onClick={() => handleExportConversation('md')}
+                        disabled={isExporting}
+                      >
+                        {isExporting ? (
+                          <Loader2 className="mr-2 h-4 w-4 flex-shrink-0 animate-spin" />
+                        ) : (
+                          <Download className="mr-2 h-4 w-4 flex-shrink-0" />
+                        )}
+                        <span>{t('common.export')} MD</span>
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
@@ -218,7 +282,7 @@ const ConversationManager = () => {
                         onClick={() => setShowClearConfirm(true)}
                       >
                         <Trash2 className="mr-2 h-4 w-4 flex-shrink-0" />
-                        <span>{t('common.delete') || '删除'}</span>
+                        <span>{t('common.delete')}</span>
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -268,11 +332,8 @@ const ConversationManager = () => {
           </div>
         </div>
         
-        {/* Chat Panel */}
-        <ChatPanel 
-          conversation={currentConversation}
-          onSendMessage={handleSendMessage}
-        />
+        {/* Chat Panel - 使用EnhancedChatPanel作为默认实现 */}
+        <EnhancedChatPanel />
       </div>
     </div>
   );

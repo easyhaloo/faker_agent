@@ -20,7 +20,7 @@ from backend.core.models.memory import (
     MemoryProfileUpdate, MemoryEpisodeUpdate, MemoryResponse,
     MemoryType, MemoryScope
 )
-from backend.core.services.memory_service import memory_service
+from backend.core.services.memory_service import enhanced_memory_service as memory_service
 from backend.core.utils.logging import get_logger
 
 # Configure logger

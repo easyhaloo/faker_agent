@@ -54,7 +54,7 @@ class MemoryProfile(BaseModel):
     metadata: Optional[Dict[str, Any]] = Field(default=None)
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class MemoryEpisode(BaseModel):
@@ -74,7 +74,7 @@ class MemoryEpisode(BaseModel):
     metadata: Optional[Dict[str, Any]] = Field(default=None)
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class ConversationSummary(BaseModel):
@@ -91,7 +91,7 @@ class ConversationSummary(BaseModel):
     metadata: Optional[Dict[str, Any]] = Field(default=None)
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class MemoryAudit(BaseModel):
@@ -108,7 +108,7 @@ class MemoryAudit(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # Request/Response Models
@@ -177,4 +177,4 @@ class MemorySettings(BaseModel):
     summary_token_threshold: int = 4000
     
     class Config:
-        orm_mode = True
+        from_attributes = True

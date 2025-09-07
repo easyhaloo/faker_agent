@@ -3,7 +3,7 @@ Protocol factory for creating protocol handlers.
 """
 import logging
 from enum import Enum
-from typing import Optional
+from typing import Optional, Any
 
 from backend.core.protocol.base_protocol import BaseProtocol
 from backend.core.protocol.http_protocol import HTTPProtocol
@@ -32,12 +32,11 @@ class ProtocolFactory:
     
     def __init__(self):
         """Initialize the protocol factory."""
-        self._protocols = {
-            ProtocolType.HTTP: HTTPProtocol(),
-            ProtocolType.SSE: SSEProtocol(),
-            ProtocolType.WEBSOCKET: WebSocketProtocol()
-        }
-        logger.info("Initialized ProtocolFactory")
+        self._protocols = {}
+        self._filtered_registry = None  # Will be set later to avoid circular imports
+        
+        # Use elegant logging for initialization (moved to avoid circular imports)
+        # log_initialization will be called after all imports are complete
     
     def get_protocol(self, protocol_type: str) -> Optional[BaseProtocol]:
         """
@@ -70,6 +69,16 @@ class ProtocolFactory:
             logger.info(f"Registered custom protocol: {protocol_type}")
         except ValueError:
             logger.warning(f"Invalid protocol type: {protocol_type}")
+    
+    def set_filtered_registry(self, filtered_registry: Any) -> None:
+        """
+        Set the filtered registry to avoid circular imports.
+        
+        Args:
+            filtered_registry: The filtered protocol registry instance
+        """
+        self._filtered_registry = filtered_registry
+        logger.info("Set filtered registry for protocol factory")
 
 
 # Create global protocol factory instance

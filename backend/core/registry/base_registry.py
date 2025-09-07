@@ -75,8 +75,11 @@ class ToolRegistry:
     """Registry for managing tools and plugins."""
     
     def __init__(self):
-        self.tools: Dict[str, ToolDefinition] = {}
-        logger.info("Initialized ToolRegistry")
+        self.tools: Dict[str, BaseTool] = {}
+        
+        # Use elegant logging for initialization
+        from backend.core.utils.logging import log_initialization
+        log_initialization("BaseToolRegistry", "with tool storage capabilities")
     
     def register_tool(self, tool_class: Type[BaseTool]) -> None:
         """Register a tool class."""

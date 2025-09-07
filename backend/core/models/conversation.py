@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import List, Optional, Dict, Any, Union
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ToolCall(BaseModel):
@@ -34,7 +34,52 @@ class Message(BaseModel):
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Optional metadata for the message")
     
     class Config:
-        orm_mode = True
+        from_attributes = True
+        
+    @model_validator(mode='before')
+    @classmethod
+    def validate_from_orm(cls, data: Any) -> Any:
+        """Validate and convert data from ORM model."""
+        if hasattr(data, '__dict__'):
+            # Handle tool_calls field - ensure it's always a list
+            if hasattr(data, 'tool_calls'):
+                if data.tool_calls is None:
+                    data.tool_calls = []
+                elif isinstance(data.tool_calls, str):
+                    try:
+                        import json
+                        tool_calls_data = json.loads(data.tool_calls)
+                        if isinstance(tool_calls_data, list):
+                            data.tool_calls = tool_calls_data
+                        else:
+                            data.tool_calls = []
+                    except:
+                        data.tool_calls = []
+                elif not isinstance(data.tool_calls, list):
+                    data.tool_calls = []
+            
+            # Handle metadata/extra_data field - ensure it's always a dict or None
+            if hasattr(data, 'extra_data'):
+                if data.extra_data is None:
+                    data.metadata = None
+                elif isinstance(data.extra_data, str):
+                    try:
+                        import json
+                        metadata_data = json.loads(data.extra_data)
+                        if isinstance(metadata_data, dict):
+                            data.metadata = metadata_data
+                        else:
+                            data.metadata = None
+                    except:
+                        data.metadata = None
+                elif isinstance(data.extra_data, dict):
+                    data.metadata = data.extra_data
+                else:
+                    data.metadata = None
+            elif not hasattr(data, 'metadata'):
+                data.metadata = None
+                
+        return data
 
 
 class Conversation(BaseModel):
@@ -49,7 +94,7 @@ class Conversation(BaseModel):
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Optional metadata for the conversation")
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class ConversationCreate(BaseModel):
@@ -92,7 +137,7 @@ class ConversationResponse(BaseModel):
     last_message: Optional[str] = None
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class ConversationListResponse(BaseModel):

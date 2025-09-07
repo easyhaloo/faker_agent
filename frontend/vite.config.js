@@ -6,10 +6,23 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-    host: true,
+    host: '0.0.0.0',
     strictPort: true,
+    // 优化热重载性能
+    hmr: {
+      overlay: true,
+      timeout: 30000,
+      clientPort: 5173
+    },
+    // 文件系统优化
+    watch: {
+      usePolling: false,
+      interval: 1000
+    },
     // 正确配置SPA路由，解决404问题
-    historyApiFallback: true
+    historyApiFallback: true,
+    // 禁用清屏以获得更好的开发体验
+    clearScreen: false
   },
   build: {
     outDir: 'dist',

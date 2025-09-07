@@ -1,0 +1,114 @@
+/* Infinite scroll animations for conversation list */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.animate-slide-in-up {
+  animation: slideInUp 0.4s ease-out forwards;
+}
+
+/* Smooth transitions for loading states */
+.conversation-item-enter {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.conversation-item-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 300ms, transform 300ms;
+}
+
+/* Loading indicator animations */
+.loading-pulse {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Smooth scroll behavior */
+.smooth-scroll {
+  scroll-behavior: smooth;
+}
+
+/* Prevent layout shift during loading */
+.conversation-list-container {
+  contain: layout style;
+}
+
+/* Optimize rendering for large lists */
+.conversation-item {
+  content-visibility: auto;
+  contain-intrinsic-height: 80px;
+}
+
+/* Enhanced hover effects for conversation items */
+.conversation-list-container li {
+  transition: background-color 0.2s ease-in-out;
+}
+
+.conversation-list-container li:hover {
+  background-color: rgba(59, 130, 246, 0.05);
+}
+
+.dark .conversation-list-container li:hover {
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+/* Smooth transitions for action buttons */
+.conversation-list-container .group-hover\:opacity-100 {
+  transition: opacity 0.2s ease-in-out;
+}
+
+/* Loading more indicator styling */
+.loading-more-indicator {
+  padding: 16px;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* Infinite scroll observer target */
+.observer-target {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+}
+
+/* Prevent scroll jumping during load */
+.conversation-list-container {
+  overscroll-behavior: contain;
+}

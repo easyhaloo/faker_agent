@@ -44,10 +44,16 @@ class LiteLLMAdapter(LLMPort):
         self.model = model or litellm_client.model
         self.temperature = temperature or litellm_client.temperature
         self.max_tokens = max_tokens or litellm_client.max_tokens
-        self.timeout = timeout
         self.streaming = streaming
         
-        logger.info(f"Initialized LiteLLMAdapter with model={self.model}, streaming={self.streaming}")
+        # Use elegant logging for initialization
+        from backend.core.utils.logging import log_initialization
+        log_initialization(
+            "LiteLLMAdapter",
+            f"model={self.model}, streaming={self.streaming}",
+            temperature=self.temperature,
+            max_tokens=self.max_tokens
+        )
     
     async def chat(self, messages: List[Message]) -> Message:
         """
@@ -174,6 +180,6 @@ class LiteLLMAdapter(LLMPort):
         )
 
 
-# Create global adapter instances
+# Global adapter instances
 default_llm_adapter = LiteLLMAdapter()
 streaming_llm_adapter = LiteLLMAdapter(streaming=True)

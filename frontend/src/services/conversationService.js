@@ -7,7 +7,7 @@
 import { apiClient } from './apiClient';
 
 // API endpoint prefix
-const CONVERSATIONS_ENDPOINT = '/conversations';
+const CONVERSATIONS_ENDPOINT = '/conversations/';
 
 /**
  * Create a new conversation
@@ -37,16 +37,31 @@ export const createConversation = async (data = {}) => {
  * @param {Object} options - Query options
  * @param {number} options.skip - Number of conversations to skip (default: 0)
  * @param {number} options.limit - Maximum number of conversations to return (default: 10)
+ * @param {boolean} options.include_total - Whether to include total count (default: true)
  * @returns {Promise<Object>} - List of conversations with pagination info
  */
 export const getConversations = async (options = {}) => {
   try {
-    const { skip = 0, limit = 10 } = options;
+    const { skip = 0, limit = 10, include_total = true } = options;
     const response = await apiClient.get(CONVERSATIONS_ENDPOINT, {
-      params: { skip, limit }
+      params: { skip, limit, include_total }
     });
     
-    return response.data;
+    // Ensure response has proper pagination structure
+    const data = response.data;
+    if (data.data && Array.isArray(data.data.conversations)) {
+      return {
+        status: 'success',
+        data: {
+          conversations: data.data.conversations,
+          total_count: data.data.total_count || 0,
+          skip: data.data.skip || skip,
+          limit: data.data.limit || limit
+        }
+      };
+    }
+    
+    return data;
   } catch (error) {
     console.error('Error fetching conversations:', error);
     throw error;
@@ -61,7 +76,11 @@ export const getConversations = async (options = {}) => {
  */
 export const getConversation = async (conversationId) => {
   try {
-    const response = await apiClient.get(`${CONVERSATIONS_ENDPOINT}/${conversationId}`);
+    // Remove trailing slash from CONVERSATIONS_ENDPOINT to avoid double slashes
+    const endpoint = CONVERSATIONS_ENDPOINT.endsWith('/') 
+      ? CONVERSATIONS_ENDPOINT.slice(0, -1) 
+      : CONVERSATIONS_ENDPOINT;
+    const response = await apiClient.get(`${endpoint}/${conversationId}`);
     return response.data;
   } catch (error) {
     console.error(`Error fetching conversation ${conversationId}:`, error);
@@ -80,7 +99,11 @@ export const getConversation = async (conversationId) => {
  */
 export const updateConversation = async (conversationId, data = {}) => {
   try {
-    const response = await apiClient.put(`${CONVERSATIONS_ENDPOINT}/${conversationId}`, data);
+    // Remove trailing slash from CONVERSATIONS_ENDPOINT to avoid double slashes
+    const endpoint = CONVERSATIONS_ENDPOINT.endsWith('/') 
+      ? CONVERSATIONS_ENDPOINT.slice(0, -1) 
+      : CONVERSATIONS_ENDPOINT;
+    const response = await apiClient.put(`${endpoint}/${conversationId}`, data);
     return response.data;
   } catch (error) {
     console.error(`Error updating conversation ${conversationId}:`, error);
@@ -97,10 +120,20 @@ export const updateConversation = async (conversationId, data = {}) => {
  */
 export const updateConversationTitle = async (conversationId, title) => {
   try {
-    const response = await apiClient.put(`${CONVERSATIONS_ENDPOINT}/${conversationId}/title`, { title });
+    console.log(`[DEBUG] ConversationService: Updating title for ${conversationId} to: ${title}`);
+    // Remove trailing slash from CONVERSATIONS_ENDPOINT to avoid double slashes
+    const endpoint = CONVERSATIONS_ENDPOINT.endsWith('/') 
+      ? CONVERSATIONS_ENDPOINT.slice(0, -1) 
+      : CONVERSATIONS_ENDPOINT;
+    const url = `${endpoint}/${conversationId}`;
+    console.log(`[DEBUG] ConversationService: Making PUT request to ${url}`);
+    const response = await apiClient.put(url, { title });
+    console.log(`[DEBUG] ConversationService: API response status:`, response.status);
+    console.log(`[DEBUG] ConversationService: API response data:`, response.data);
     return response.data;
   } catch (error) {
     console.error(`Error updating conversation title ${conversationId}:`, error);
+    console.error(`Error details:`, error.response?.data, error.response?.status);
     throw error;
   }
 };
@@ -113,7 +146,11 @@ export const updateConversationTitle = async (conversationId, title) => {
  */
 export const deleteConversation = async (conversationId) => {
   try {
-    const response = await apiClient.delete(`${CONVERSATIONS_ENDPOINT}/${conversationId}`);
+    // Remove trailing slash from CONVERSATIONS_ENDPOINT to avoid double slashes
+    const endpoint = CONVERSATIONS_ENDPOINT.endsWith('/') 
+      ? CONVERSATIONS_ENDPOINT.slice(0, -1) 
+      : CONVERSATIONS_ENDPOINT;
+    const response = await apiClient.delete(`${endpoint}/${conversationId}`);
     return response.data;
   } catch (error) {
     console.error(`Error deleting conversation ${conversationId}:`, error);
@@ -133,9 +170,13 @@ export const deleteConversation = async (conversationId) => {
  */
 export const addMessage = async (conversationId, message) => {
   try {
-    const response = await apiClient.post(`${CONVERSATIONS_ENDPOINT}/${conversationId}/messages`, {
+    // Remove trailing slash from CONVERSATIONS_ENDPOINT to avoid double slashes
+    const endpoint = CONVERSATIONS_ENDPOINT.endsWith('/') 
+      ? CONVERSATIONS_ENDPOINT.slice(0, -1) 
+      : CONVERSATIONS_ENDPOINT;
+    const response = await apiClient.post(`${endpoint}/${conversationId}/messages`, {
       role: message.role,
-      content: message.content,
+      message: message.content,
       metadata: message.metadata || {}
     });
     
@@ -158,14 +199,47 @@ export const addMessage = async (conversationId, message) => {
  */
 export const sendUserMessage = async (conversationId, content) => {
   try {
-    const response = await apiClient.post(`${CONVERSATIONS_ENDPOINT}/${conversationId}/messages`, {
-      role: 'user',
-      content
+    // Remove trailing slash from CONVERSATIONS_ENDPOINT to avoid double slashes
+    const endpoint = CONVERSATIONS_ENDPOINT.endsWith('/') 
+      ? CONVERSATIONS_ENDPOINT.slice(0, -1) 
+      : CONVERSATIONS_ENDPOINT;
+    const response = await apiClient.post(`${endpoint}/${conversationId}/messages`, {
+      message: content
     });
     
     return response.data;
   } catch (error) {
     console.error(`Error sending user message to conversation ${conversationId}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Export a conversation in various formats
+ * 
+ * @param {string} conversationId - Conversation ID
+ * @param {string} format - Export format (json, txt, md)
+ * @returns {Promise<Object>} - Exported conversation data
+ */
+export const exportConversation = async (conversationId, format = 'json') => {
+  try {
+    console.log(`[DEBUG] Exporting conversation ${conversationId} in ${format} format`);
+    // Remove trailing slash from CONVERSATIONS_ENDPOINT to avoid double slashes
+    const endpoint = CONVERSATIONS_ENDPOINT.endsWith('/') 
+      ? CONVERSATIONS_ENDPOINT.slice(0, -1) 
+      : CONVERSATIONS_ENDPOINT;
+    const url = `${endpoint}/${conversationId}/export`;
+    console.log(`[DEBUG] Making GET request to ${url}?format=${format}`);
+    
+    const response = await apiClient.get(url, {
+      params: { format }
+    });
+    
+    console.log(`[DEBUG] Export API response:`, response.data);
+    return response.data;
+  } catch (error) {
+    console.error(`Error exporting conversation ${conversationId}:`, error);
+    console.error(`Error details:`, error.response?.data, error.response?.status);
     throw error;
   }
 };
@@ -178,5 +252,6 @@ export const conversationService = {
   updateConversationTitle,
   deleteConversation,
   addMessage,
-  sendUserMessage
+  sendUserMessage,
+  exportConversation
 };

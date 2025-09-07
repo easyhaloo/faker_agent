@@ -29,12 +29,30 @@ class Settings(BaseSettings):
     LITELLM_MAX_TOKENS: Optional[int] = Field(default=None, env="LITELLM_MAX_TOKENS")
     LITELLM_TIMEOUT: float = Field(default=30.0, env="LITELLM_TIMEOUT")
     
+    # Additional API keys
+    GITHUB_API_KEY: Optional[str] = Field(default=None, env="GITHUB_API_KEY")
+    GITHUB_API_BASE: Optional[str] = Field(default=None, env="GITHUB_API_BASE")
+    GEMINI_API_KEY: Optional[str] = Field(default=None, env="GEMINI_API_KEY")
+    WEATHER_API_KEY: Optional[str] = Field(default=None, env="WEATHER_API_KEY")
+    
+    # LiteLLM fallback configuration - use GitHub settings if LiteLLM settings are not provided
+    @property
+    def effective_litellm_api_key(self) -> Optional[str]:
+        """Get effective API key for LiteLLM (fallback to GITHUB_API_KEY if LITELLM_API_KEY not set)"""
+        return self.LITELLM_API_KEY or self.GITHUB_API_KEY
+    
+    @property
+    def effective_litellm_base_url(self) -> Optional[str]:
+        """Get effective base URL for LiteLLM (fallback to GITHUB_API_BASE if LITELLM_BASE_URL not set)"""
+        return self.LITELLM_BASE_URL or self.GITHUB_API_BASE
+    
     # Memory settings
     MEMORY_CLEANUP_INTERVAL: int = Field(default=3600, env="MEMORY_CLEANUP_INTERVAL")  # 1 hour
     
     class Config:
         """Pydantic config."""
-        env_file = ".env"
+        # Use path relative to this settings file
+        env_file = os.path.join(os.path.dirname(__file__), "..", ".env")
         env_file_encoding = "utf-8"
 
 

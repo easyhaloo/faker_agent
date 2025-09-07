@@ -21,4 +21,12 @@ router.include_router(agent_router, prefix="/agent/v1", tags=["agent"])
 router.include_router(memory_router, prefix="/memory", tags=["memory"])
 router.include_router(conversation_router, prefix="/conversations", tags=["conversations"])
 
-logger.info("Initialized main API router with agent, memory, and conversation routes")
+# Use elegant logging for initialization
+from backend.core.utils.logging import log_initialization
+log_initialization(
+    "MainAPIRouter",
+    "with agent, memory, and conversation routes",
+    agent_routes=True,
+    memory_routes=True,
+    conversation_routes=True
+)

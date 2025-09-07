@@ -36,6 +36,8 @@ class FilteredProtocolRegistry:
             protocol_factory: Optional protocol factory to use, creates a new one if not provided
         """
         self._protocol_factory = protocol_factory or ProtocolFactory()
+        # Set the filtered registry on the protocol factory to avoid circular imports
+        self._protocol_factory.set_filtered_registry(self)
         # We'll set the filter_manager later to avoid circular imports
         self._filter_manager = None
         self._enabled_protocols: Set[str] = set()

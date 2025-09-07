@@ -6,8 +6,11 @@ with integrated agent processing.
 """
 from typing import List, Optional, Dict, Any
 from uuid import UUID
+import json
+from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Body
+from pydantic import BaseModel
 
 from backend.core.agent import conversation_agent
 from backend.core.models.conversation import (
@@ -23,7 +26,20 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-@router.post("/conversations", response_model=Dict[str, Any], status_code=201)
+class MessageRequest(BaseModel):
+    """Request model for processing a message."""
+    message: str
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class MessageResponse(BaseModel):
+    """Response model for message processing."""
+    status: str
+    data: Optional[Dict[str, Any]] = None
+    error: Optional[Dict[str, Any]] = None
+
+
+@router.post("/", response_model=Dict[str, Any], status_code=201)
 async def create_conversation(
     title: str = "New Conversation",
     metadata: Optional[Dict[str, Any]] = None
@@ -41,12 +57,11 @@ async def create_conversation(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/conversations/{conversation_id}/messages", response_model=Dict[str, Any], status_code=201)
+@router.post("/{conversation_id}/messages", response_model=MessageResponse, status_code=201)
 async def process_message(
     conversation_id: UUID,
-    message: str,
-    metadata: Optional[Dict[str, Any]] = None
-) -> Dict[str, Any]:
+    request: MessageRequest
+) -> MessageResponse:
     """
     Process a user message within a conversation context.
     
@@ -57,12 +72,12 @@ async def process_message(
     4. Result storage (conversation updates)
     """
     try:
-        result = await conversation_agent.process_message(conversation_id, message, metadata)
+        result = await conversation_agent.process_message(conversation_id, request.message, request.metadata)
         if result["status"] == "error":
             if result["error"]["code"] == "CONVERSATION_NOT_FOUND":
                 raise HTTPException(status_code=404, detail=result["error"]["message"])
             raise HTTPException(status_code=500, detail=result["error"]["message"])
-        return result
+        return MessageResponse(status="success", data=result["data"])
     except HTTPException:
         raise
     except Exception as e:
@@ -70,15 +85,18 @@ async def process_message(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/conversations", response_model=Dict[str, Any])
+@router.get("/", response_model=Dict[str, Any])
 async def list_conversations(
-    page: int = 1,
-    page_size: int = 20,
+    skip: int = 0,
+    limit: int = 10,
 ) -> Dict[str, Any]:
     """
     List conversations with pagination.
     """
     try:
+        # Convert skip/limit to page/page_size
+        page = (skip // limit) + 1 if limit > 0 else 1
+        page_size = limit
         result = await conversation_agent.list_conversations(page, page_size)
         if result["status"] == "error":
             raise HTTPException(status_code=500, detail=result["error"]["message"])
@@ -88,7 +106,7 @@ async def list_conversations(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/conversations/{conversation_id}", response_model=Dict[str, Any])
+@router.get("/{conversation_id}", response_model=Dict[str, Any])
 async def get_conversation_history(
     conversation_id: UUID,
     limit: int = 50,
@@ -111,7 +129,7 @@ async def get_conversation_history(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.put("/conversations/{conversation_id}", response_model=Dict[str, Any])
+@router.put("/{conversation_id}", response_model=Dict[str, Any])
 async def update_conversation(
     conversation_id: UUID,
     title: Optional[str] = None,
@@ -134,7 +152,7 @@ async def update_conversation(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/conversations/{conversation_id}", status_code=204)
+@router.delete("/{conversation_id}", status_code=204)
 async def delete_conversation(
     conversation_id: UUID,
 ) -> None:
@@ -151,4 +169,125 @@ async def delete_conversation(
         raise
     except Exception as e:
         logger.error(f"Error deleting conversation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{conversation_id}/export", response_model=Dict[str, Any])
+async def export_conversation(
+    conversation_id: UUID,
+    format: str = "json"
+) -> Dict[str, Any]:
+    """
+    Export a conversation in various formats (JSON, TXT, etc.).
+    
+    Args:
+        conversation_id: The conversation ID to export
+        format: Export format (json, txt, md)
+    
+    Returns:
+        Dictionary containing the exported data and metadata
+    """
+    try:
+        # Get conversation history
+        result = await conversation_agent.get_conversation_history(conversation_id)
+        if result["status"] == "error":
+            if result["error"]["code"] == "CONVERSATION_NOT_FOUND":
+                raise HTTPException(status_code=404, detail=result["error"]["message"])
+            raise HTTPException(status_code=500, detail=result["error"]["message"])
+        
+        conversation_data = result["data"]
+        conversation = conversation_data["conversation"]
+        messages = conversation_data["messages"]
+        
+        # Format the export data based on requested format
+        if format.lower() == "json":
+            export_data = {
+                "conversation": {
+                    "id": str(conversation.id),
+                    "title": conversation.title,
+                    "created_at": conversation.created_at.isoformat(),
+                    "updated_at": conversation.updated_at.isoformat(),
+                    "metadata": conversation.metadata
+                },
+                "messages": [
+                    {
+                        "id": str(msg.id),
+                        "role": msg.role,
+                        "content": msg.content,
+                        "created_at": msg.created_at.isoformat(),
+                        "metadata": msg.metadata
+                    }
+                    for msg in messages
+                ]
+            }
+            content_type = "application/json"
+            filename = f"conversation_{conversation_id}.json"
+            
+        elif format.lower() == "txt":
+            # Plain text format
+            lines = [f"Conversation: {conversation.title}"]
+            lines.append(f"Created: {conversation.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
+            lines.append(f"Updated: {conversation.updated_at.strftime('%Y-%m-%d %H:%M:%S')}")
+            lines.append("=" * 50)
+            lines.append("")
+            
+            for msg in messages:
+                role_label = "User" if msg.role == "user" else "Assistant"
+                timestamp = msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                lines.append(f"[{timestamp}] {role_label}:")
+                lines.append(msg.content)
+                lines.append("")
+                lines.append("-" * 30)
+                lines.append("")
+            
+            export_data = "\n".join(lines)
+            content_type = "text/plain"
+            filename = f"conversation_{conversation_id}.txt"
+            
+        elif format.lower() == "md":
+            # Markdown format
+            lines = [f"# {conversation.title}"]
+            lines.append("")
+            lines.append(f"**Created:** {conversation.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
+            lines.append(f"**Updated:** {conversation.updated_at.strftime('%Y-%m-%d %H:%M:%S')}")
+            lines.append("")
+            lines.append("---")
+            lines.append("")
+            
+            for msg in messages:
+                role_label = "**User**" if msg.role == "user" else "**Assistant**"
+                timestamp = msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                lines.append(f"> **{role_label}** *{timestamp}*")
+                lines.append(">")
+                # Handle multi-line content in markdown quote format
+                content_lines = msg.content.split('\n')
+                for line in content_lines:
+                    lines.append(f"> {line}")
+                lines.append("")
+                lines.append("---")
+                lines.append("")
+            
+            export_data = "\n".join(lines)
+            content_type = "text/markdown"
+            filename = f"conversation_{conversation_id}.md"
+            
+        else:
+            raise HTTPException(status_code=400, detail=f"Unsupported format: {format}")
+        
+        return {
+            "status": "success",
+            "data": {
+                "content": export_data,
+                "filename": filename,
+                "content_type": content_type,
+                "format": format.lower(),
+                "exported_at": datetime.now().isoformat(),
+                "message_count": len(messages)
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error exporting conversation {conversation_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))

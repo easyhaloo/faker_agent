@@ -20,7 +20,12 @@ export const zh = {
     messages: "条消息",
     search: "搜索",
     searchConversations: "搜索对话",
-    noSearchResults: "无搜索结果"
+    noSearchResults: "无搜索结果",
+    export: "导出",
+    error: "错误",
+    sendShortcut: "发送快捷键",
+    sync: "同步",
+    stream: "流式"
   },
   conversation: {
     title: "对话列表",
@@ -70,7 +75,8 @@ export const zh = {
     cache: "缓存",
     cleared: "已清理",
     restoreDefaults: "恢复默认设置",
-    language: "语言选择"
+    language: "语言选择",
+    manageSystemSettings: "系统设置",
   },
   search: {
     conversationSearch: "对话搜索",

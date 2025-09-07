@@ -12,8 +12,10 @@ from backend.core.tools.base import BaseTool
 from backend.core.utils.logging import get_logger
 
 # Configure logger
-logger = get_logger()
+logger = get_logger(__name__)
 
+# Use elegant logging for initialization
+from backend.core.utils.logging import log_initialization
 
 class ToolRegistry:
     """Registry for managing LangChain-compatible tools.
@@ -26,7 +28,9 @@ class ToolRegistry:
     def __init__(self):
         self.tools: Dict[str, BaseTool] = {}
         self.langchain_tools: Dict[str, Any] = {}  # LangChain tool adapters
-        logger.info("Initialized ToolRegistry")
+        
+        # Use elegant logging for initialization
+        log_initialization("ToolRegistry", "with tool and LangChain adapter support")
     
     def register_tool(self, tool: BaseTool) -> None:
         """

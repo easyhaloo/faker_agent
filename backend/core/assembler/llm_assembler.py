@@ -86,7 +86,14 @@ class LLMAssembler:
         # Get LLM client from factory
         self.llm_client = llm_factory.get_default_client()
             
-        logger.info(f"Initialized LLMAssembler with {len(self.tools)} tools and model {self.model}")
+        # Use elegant logging for initialization
+        from backend.core.utils.logging import log_initialization
+        log_initialization(
+            "LLMAssembler",
+            f"tools={len(self.tools)}, model={self.model}",
+            temperature=self.temperature,
+            max_tokens=self.max_tokens
+        )
     
     async def get_response(self, query: str, messages: List[Any] = None) -> Any:
         """
@@ -476,5 +483,5 @@ class LLMAssembler:
             )
 
 
-# Create global assembler instance
+# Global assembler instance
 assembler = LLMAssembler()

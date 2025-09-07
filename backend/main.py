@@ -12,17 +12,20 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# Add the backend directory to Python path for proper imports
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from backend.api.main_router import router
 from backend.config.settings import settings
 from backend.core.infrastructure.database import engine, Base
 from backend.core.utils.background_tasks import background_task_manager
-from backend.core.utils.logging import setup_logging
+from backend.core.utils.logging import setup_logging, get_logger, log_startup_phase, log_shutdown
 
-# Configure logging
+# Configure elegant logging
 setup_logging()
-
-# Configure logger
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @asynccontextmanager
@@ -34,23 +37,20 @@ async def lifespan(app: FastAPI):
     and background task management.
     """
     # Startup
-    logger.info("Starting Faker Agent backend")
+    log_startup_phase("MAIN", "Starting Faker Agent backend application")
     
-    # Create database tables
-    logger.info("Creating database tables")
+    # Database initialization
+    log_startup_phase("DATABASE", "Creating database tables")
     Base.metadata.create_all(bind=engine)
     
-    # Start background tasks
-    logger.info("Starting background tasks")
+    # Background tasks
+    log_startup_phase("BACKGROUND", "Starting background tasks")
     await background_task_manager.start_cleanup_task(settings.MEMORY_CLEANUP_INTERVAL)
     
     yield
     
     # Shutdown
-    logger.info("Shutting down Faker Agent backend")
-    
-    # Stop background tasks
-    logger.info("Stopping background tasks")
+    log_shutdown()
     await background_task_manager.stop_cleanup_task()
 
 

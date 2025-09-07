@@ -42,6 +42,8 @@ class LiteLLMClient:
         timeout: Optional[float] = None,
         retry_attempts: int = 1,
         streaming: bool = False,
+        custom_headers: Optional[dict] = None,
+        provider: Optional[str] = None,
     ):
         """
         Initialize the LiteLLM client.
@@ -53,18 +55,53 @@ class LiteLLMClient:
             temperature: Temperature for generation (defaults to settings)
             max_tokens: Maximum tokens to generate (defaults to settings)
         """
-        # Use settings as defaults
+        # Configure client
         self.model = model or settings.LITELLM_MODEL
+        self.temperature = temperature if temperature is not None else settings.LITELLM_TEMPERATURE
+        self.max_tokens = max_tokens or settings.LITELLM_MAX_TOKENS
+        self.streaming = streaming
+        self.timeout = timeout or settings.LITELLM_TIMEOUT
         self.api_key = api_key or settings.LITELLM_API_KEY
         self.base_url = base_url or settings.LITELLM_BASE_URL
-        self.temperature = temperature or settings.LITELLM_TEMPERATURE
-        self.max_tokens = max_tokens or settings.LITELLM_MAX_TOKENS
-        self.timeout = timeout or settings.LITELLM_TIMEOUT
-        self.retry_attempts = retry_attempts
-        self.streaming = streaming
+        self.custom_headers = custom_headers or {}
+        self.provider = provider or self._detect_provider()
+        
+        # Use elegant logging for initialization
+        from backend.core.utils.logging import log_initialization
+        log_initialization(
+            "LiteLLMClient",
+            f"model={self.model}, provider={self.provider}, streaming={self.streaming}",
+            temperature=self.temperature,
+            max_tokens=self.max_tokens,
+            timeout=self.timeout
+        )
         
         # Validate required settings
         self._validate_config()
+    
+    def _detect_provider(self) -> str:
+        """
+        Detect the provider from the model name.
+        
+        Returns:
+            The detected provider name
+        """
+        if not self.model:
+            return "unknown"
+        
+        model_lower = self.model.lower()
+        
+        # Common provider patterns
+        if "gpt" in model_lower or "text-davinci" in model_lower:
+            return "openai"
+        elif "claude" in model_lower:
+            return "anthropic"
+        elif "gemini" in model_lower:
+            return "google"
+        elif "llama" in model_lower or "mistral" in model_lower:
+            return "huggingface"
+        else:
+            return "unknown"
         
         # Create the LangChain ChatLiteLLM instance
         self.client = self._create_client()
@@ -76,6 +113,17 @@ class LiteLLMClient:
             # If provider detection fails, use a default value
             provider = "default"
         logger.info(f"Initialized LiteLLMClient with model={self.model} (provider={provider}, streaming={self.streaming})")
+        
+        # Debug configuration sources
+        if settings.LITELLM_API_KEY:
+            logger.debug("Using LITELLM_API_KEY from settings")
+        elif settings.GITHUB_API_KEY:
+            logger.debug("Using GITHUB_API_KEY as fallback for LiteLLM API key")
+        
+        if settings.LITELLM_BASE_URL:
+            logger.debug("Using LITELLM_BASE_URL from settings")
+        elif settings.GITHUB_API_BASE:
+            logger.debug("Using GITHUB_API_BASE as fallback for LiteLLM base URL")
     
     def _validate_config(self) -> None:
         """
@@ -90,11 +138,23 @@ class LiteLLMClient:
             self.model = "gpt-3.5-turbo"  # Use a default model
         
         # Check if either API key or base URL is provided
-        # We'll log a warning but continue anyway for testing
         if not self.api_key and not self.base_url:
-            logger.warning("Neither API key nor base URL provided, some features may not work")
+            logger.warning(f"Neither API key nor base URL provided for model {self.model}. "
+                         f"Check your .env file - ensure LITELLM_API_KEY/GITHUB_API_KEY "
+                         f"or LITELLM_BASE_URL/GITHUB_API_BASE is set.")
             # For testing purposes only - in production, we would raise an error
             # raise ConfigurationError("api_key", "Either API key or base URL must be provided")
+        else:
+            # Log configuration status (without exposing sensitive data)
+            config_summary = []
+            if self.api_key:
+                config_summary.append("API key configured")
+            if self.base_url:
+                config_summary.append(f"Base URL: {self.base_url}")
+            if self.model:
+                config_summary.append(f"Model: {self.model}")
+            
+            logger.info(f"LiteLLM configuration: {', '.join(config_summary)}")
     
     def _create_client(self) -> ChatLiteLLM:
         """
@@ -402,5 +462,5 @@ async def generate_streaming(
         raise ModelError(request.model, str(e))
 
 
-# Create global client instance
+# Global LiteLLM client instance
 litellm_client = LiteLLMClient()

@@ -96,9 +96,9 @@ if not %errorlevel% equ 0 (
 )
 
 :: Start frontend service
-echo 🌐 Starting frontend service...
+echo 🌐 Starting frontend service with hot reload...
 cd frontend
-start "Frontend Service [PORT:%FRONTEND_PORT%]" /D "%cd%" cmd /k "npm run dev"
+start "Frontend Service [PORT:%FRONTEND_PORT% - Hot Reload Enabled]" /D "%cd%" cmd /k "npm run dev -- --host 0.0.0.0 --port %FRONTEND_PORT% --strictPort --clearScreen false"
 cd ..
 
 :: Verify frontend service started

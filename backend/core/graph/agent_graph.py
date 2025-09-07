@@ -46,7 +46,7 @@ class AgentGraph:
     def _build_graph(self) -> StateGraph:
         """Build the agent graph."""
         # Create a state graph with proper state schema
-        graph = StateGraph(state_schema=AgentState, context_schema=AgentContext)
+        graph = StateGraph(AgentState)
         
         # Add nodes
         graph.add_node("llm", self._call_llm)
@@ -70,12 +70,11 @@ class AgentGraph:
         
         return graph.compile()
     
-    async def _call_llm(self, state: AgentState, context: AgentContext) -> Dict[str, List[Any]]:
-        """Call the LLM with the current state and context.
+    async def _call_llm(self, state: AgentState) -> Dict[str, List[Any]]:
+        """Call the LLM with the current state.
         
         Args:
             state: The current agent state containing messages
-            context: Runtime context with conversation ID
             
         Returns:
             Updated state with LLM response added to messages
@@ -104,17 +103,18 @@ class AgentGraph:
             
         except Exception as e:
             logger.error(f"Error calling LLM: {e}")
+            # Extract messages from state for error response
+            messages = state.get("messages", [])
             # Fallback to simple response
             error_msg = f"I received your query, but I'm currently experiencing technical difficulties: {str(e)}"
             error_message = AIMessage(content=error_msg)
             return {"messages": messages + [error_message]}
     
-    async def _execute_tools(self, state: AgentState, context: AgentContext) -> Dict[str, List[Any]]:
+    async def _execute_tools(self, state: AgentState) -> Dict[str, List[Any]]:
         """Execute tools based on LLM output.
         
         Args:
             state: The current agent state containing messages
-            context: Runtime context with conversation ID
             
         Returns:
             Updated state with tool results added to messages
@@ -173,12 +173,11 @@ class AgentGraph:
         # Return updated state with tool results added to messages
         return {"messages": messages + results}
     
-    def _should_continue(self, state: AgentState, context: AgentContext) -> str:
+    def _should_continue(self, state: AgentState) -> str:
         """Determine if we should continue or end based on the state.
         
         Args:
             state: The current agent state containing messages
-            context: Runtime context with conversation ID
             
         Returns:
             'continue' if there are tool calls to execute, 'end' otherwise

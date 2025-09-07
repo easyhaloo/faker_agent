@@ -21,7 +21,10 @@ class AgentService:
     def __init__(self):
         """Initialize the agent service with LangGraph."""
         self.graph = AgentGraph()
-        logger.info("Initialized AgentService with LangGraph")
+        
+        # Use elegant logging for initialization
+        from backend.core.utils.logging import log_initialization
+        log_initialization("AgentService", "with LangGraph integration")
     
     async def process_query(
         self, 
